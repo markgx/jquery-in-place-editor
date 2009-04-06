@@ -1,0 +1,59 @@
+INTRODUCTION
+------------
+
+Another In-Place Editor is a jQuery plugin that turns any element or group of elements
+into an Ajax in-place editor using only one line of code. It’s written using the jQuery
+Library, which is freely available at http://jquery.com.
+
+
+SUPPORT AND BUG REPORTS
+-----------------------
+
+Bug reports, as well as feature requests, may be submitted at:
+
+http://code.google.com/p/jquery-in-place-editor/issues/list
+
+Alternatively, you may email the developer directly: davehauenstein@gmail.com
+
+
+QUICK START
+-----------
+
+include jquery and the editin place scripts in the head section of your html page
+
+<script type="text/javascript" src="path/to/js/jquery.js"></script>
+<script type="text/javascript" src="path/to/js/jquery.editinplace.packed.js"></script>
+
+add the following code to the head of your html page
+
+<script type="text/javascript" charset="utf-8">
+    $(".inplace-editor").editInPlace({
+        url: "path/to/server/script.php"
+    });
+</script>
+
+create a div with the class 'inplace-editor'
+
+<div class="inplace-editor"></div>
+
+create a server side handler script (php, python, etc...)
+
+script.php
+
+the following parameters will be sent via a POST requeset to the server script
+
+update_value
+element_id
+original_html
+
+ex:
+$_POST['update_value']
+$_POST['element_id']
+$_POST['original_html']
+
+
+DOCUMENTATION
+-------------
+
+Extensive Documenataion can be found on the home page of this product: http://code.google.com/p/jquery-in-place-editor/
+
