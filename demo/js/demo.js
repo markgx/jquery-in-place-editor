@@ -16,11 +16,11 @@
  */
 $(document).ready(function(){
 
-    // This example is with no options except for a URL that will
-    // handle the value passed to the server.
+    // This example only specifies a URL to handle the POST request to
+    // the server, and tells the script to show the save / cancel buttons
     $(".editme1").editInPlace({
         url: "./server.php",
-        params: "ajax=yes"
+        show_buttons: true
     });
 
     // This example shows how to call the function and display a textarea
@@ -46,9 +46,9 @@ $(document).ready(function(){
     // Using a callback function to update 2 divs
     $(".editme4").editInPlace({
         url: "./server.php",
-        callback: function(original_element, html){
-            $("#updateDiv1").html("Here ya go.");
-            $("#updateDiv2").html("Here ya go 2.");
+        callback: function(original_element, html, original){
+            $("#updateDiv1").html("The original html was: " + original);
+            $("#updateDiv2").html("The updated text is: " + html);
             return(html);
         }
     });

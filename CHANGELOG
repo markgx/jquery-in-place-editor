@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------
+Version 1.0.1                                                       09 April 2009
+---------------------------------------------------------------------------------
+ - Minor Updates
+ - Script: Changed default save and cancel input fields to button elements
+ - Demo: Minor text changes and added link to demo.js file
+ - Demo: Added local version of jQuery lib instead of linking to google's
+ 
+---------------------------------------------------------------------------------
 Version 1.0.0                                                       06 April 2009
 ---------------------------------------------------------------------------------
  - Initial release

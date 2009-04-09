@@ -16,7 +16,7 @@
  */
 
 /*
- * Version 1.0.0
+ * Version 1.0.1
  *
  * bg_out (string) default: transparent hex code of background color on restore from hover
  * bg_over (string) default: #ffc hex code of background color on hover
@@ -64,8 +64,8 @@ jQuery.fn.editInPlace = function(options) {
 		element_id:			"element_id",
 		update_value:		"update_value",
 		original_html:		"original_html",
-		save_button:		'<input type="submit" class="inplace_save" value="Save"/>',
-		cancel_button:		'<input type="submit" class="inplace_cancel" value="Cancel"/>',
+		save_button:		'<button class="inplace_save">Save</button>',
+		cancel_button:		'<button class="inplace_cancel">Cancel</button>',
 		show_buttons:		false,
 		on_blur:			"save",
 		callback:			null,
