@@ -16,7 +16,7 @@
  */
 
 /*
- * Version 1.0.1
+ * Version 1.0.2
  *
  * bg_out (string) default: transparent hex code of background color on restore from hover
  * bg_over (string) default: #ffc hex code of background color on hover
@@ -69,6 +69,7 @@ jQuery.fn.editInPlace = function(options) {
 		show_buttons:		false,
 		on_blur:			"save",
 		callback:			null,
+		callbackShowErrors: true,
 		success:			null,
 		error:				function(request){
                                 alert("Failed to save value: " + request.responseText || 'Unspecified Error');
@@ -210,7 +211,10 @@ jQuery.fn.editInPlace = function(options) {
 							original_element.html(html || new_html);
 						} else {
 							/* failure; put original back */
-							alert("Failed to save value: " + new_html);
+							if(settings.callbackShowErrors)
+							{
+							    alert("Failed to save value: " + new_html);
+							}
 							original_element.html(original_html);
 						}
 					} else if (settings.value_required && (new_html == "" || new_html == undefined)) {
