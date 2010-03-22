@@ -4,7 +4,7 @@
 ;(function(){
 
   JSpec = {
-    version   : '3.3.0',
+    version   : '3.3.3',
     assert    : true,
     cache     : {},
     suites    : [],
@@ -762,8 +762,10 @@
     
     copySpecs : function(fromSuite, toSuite) {
       each(fromSuite.specs, function(spec){
-        spec.assertions = []
-        toSuite.specs.push(spec)
+        var newSpec = new Object();
+        extend(newSpec, spec);
+        newSpec.assertions = [];
+        toSuite.specs.push(newSpec);
       })
     },
     
@@ -1614,21 +1616,10 @@
   
   // --- Node.js support
   
-  if (typeof GLOBAL === 'object' && typeof exports === 'object') {
-    var posix = require('posix')
-    quit = process.exit
-    print = require('sys').puts
-
-    readFile = function(path) {
-      var result
-      posix
-        .cat(path, "utf8")
-        .addCallback(function(contents){ result = contents })
-        .addErrback(function(){ throw new Error("failed to read file `" + path + "'") })
-        .wait()
-      return result
-    }
-  }
+  if (typeof GLOBAL === 'object' && typeof exports === 'object')
+    quit = process.exit,
+    print = require('sys').puts,
+    readFile = require('fs').readFileSync
   
   // --- Utility functions
 
