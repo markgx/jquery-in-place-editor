@@ -248,8 +248,42 @@ describe 'jquery.editinplace'
         input.val('fnord').blur()
         sensor.should.equal 'fnord'
       end
+      
+      it 'should not remove content, even if it is identical to the default_text'
+        this.sandbox = $('<p>fnord</p>')
+        this.editor({ default_text:'fnord' }).find(':input').should.have_value 'fnord'
+      end
+      
+      it 'should present an empty editor if the default text was entered by the editor itself'
+        this.sandbox = $('<p></p>').editInPlace({ default_text: 'fnord', on_blur: 'cancel' })
+        this.sandbox.should.have_text 'fnord'
+        this.sandbox.click().find(':input').should.have_value ''
+        // also the second time
+        this.sandbox.find(':input').blur()
+        this.sandbox.click().find(':input').should.have_value ''
+        // but not when it was changed in the meantime
+        this.sandbox.find(':input').blur()
+        this.sandbox.text('fnord')
+        this.sandbox.click().find(':input').should.have_value 'fnord'
+      end
     })
-  
+    
+    it 'will ignore multiple attempts to add an inline editor'
+      this.numberOfHandlers = function() {
+        var handlers = this.sandbox.data('events');
+        if ( ! handlers)
+          return 0;
+        var count = 0;
+        for (var key in handlers.click)
+          count++;
+        return count;
+      }
+      this.numberOfHandlers().should.be 0
+      this.sandbox.editInPlace()
+      this.numberOfHandlers().should.be 1
+      this.sandbox.editInPlace()
+      this.numberOfHandlers().should.be 1
+    end
   end
   
 end
