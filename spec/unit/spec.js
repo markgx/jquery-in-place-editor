@@ -57,9 +57,8 @@ describe 'jquery.editinplace'
     describe 'ajax submissions'
       
       before_each
-        stub($, 'ajax')
         var _this = this;
-        $.ajax = function(options) { _this.url = options.data; }
+        stub($, 'ajax').and_return(function(options){ _this.url = options.data; })
       end
       
       it 'will submit id of original element as element_id'
@@ -113,9 +112,8 @@ describe 'jquery.editinplace'
   describe 'custom settings'
     
     it 'should add params as additional parameters to post-url'
-      stub($, 'ajax')
       var url
-      $.ajax = function(options) { url = options.data; }
+      stub($, 'ajax').and_return(function(options) { url = options.data; })
       this.editor({params: 'foo=bar'}).find('form').submit()
       url.should.include 'foo=bar'
     end
@@ -231,7 +229,25 @@ describe 'jquery.editinplace'
         this.sandbox.text(' fnord ')
         this.editor({field_type:this.type}).find(':input').should.have_value 'fnord'
       end
-    
+      
+      it 'should restore original content when canceled out of'
+        this.sandbox.text('fnord')
+        this.editor({
+          field_type:this.type,
+          on_blur:'cancel'
+        }).find(':input').blur()
+        this.sandbox.should.have_text 'fnord'
+      end
+      
+      it 'should submit enterd value to function when submitting'
+        var sensor = null
+        var input = this.editor({
+          field_type:this.type,
+          callback: function(id, enteredText) { return sensor = enteredText; }
+        }).find(':input')
+        input.val('fnord').blur()
+        sensor.should.equal 'fnord'
+      end
     })
   
   end
