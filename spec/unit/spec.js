@@ -118,12 +118,11 @@ describe 'jquery.editinplace'
     end
     
     it 'shoud call callback on submit'
-      var called
+      var sensor = false;
       this.editor({
-        callback: -{ called = true; },
-        callbackShowErrors: false // That this needs to be supressed is IMO a bug. If I submit to a callback all controll of the submit operation should be with the callback - or there should be a suite of callbacks to override this
+        callback: -{ sensor = true; return ''; },
       }).find(':input').val('fnord').submit()
-      called.should.be true
+      sensor.should.be true
     end
     
     it 'will replace editor with its return value'
