@@ -7,6 +7,9 @@ describe 'jquery.editinplace'
   end
   
   before_each
+    // If this is missing each request will grab the current page (no url specified)
+    // and on inserting it, that will whipe the test results. (I don't quite understand why)
+    mock_request().and_return('fnord')
     this.sandbox = $('<p>Some text</p>')
   end
   
@@ -213,11 +216,19 @@ describe 'jquery.editinplace'
       -{ _this.editor({ field_type: 'fnord' }) }.should.throw_error /Unknown field_type <fnord>/
     end
     
+    it 'can set hover_class parameter to override directly setting colors'
+      this.sandbox.editInPlace({ hover_class: 'fnord'})
+      this.sandbox.should.not.have_class 'fnord'
+      this.sandbox.mouseenter().should.have_class 'fnord'
+      this.sandbox.mouseleave().should.not.have_class 'fnord'
+    end
+    
   end
   
   describe 'edit field behaviour'
     
     $.each(['text', 'textarea', 'select'], function(index, type) {
+      // sadly I can't just pass it through the scope as all functions are evaled in their own scope
       this.type = type;
       
       it 'should escape content when inserting text into the ' + this.type + ' editor'
@@ -266,6 +277,7 @@ describe 'jquery.editinplace'
         this.sandbox.text('fnord')
         this.sandbox.click().find(':input').should.have_value 'fnord'
       end
+      
     })
     
     it 'will ignore multiple attempts to add an inline editor'
@@ -283,6 +295,20 @@ describe 'jquery.editinplace'
       this.numberOfHandlers().should.be 1
       this.sandbox.editInPlace()
       this.numberOfHandlers().should.be 1
+    end
+    
+    it 'should cancel when escape is pressed while focus is in the editor'
+      this.editor().find(':input').trigger({type:'keyup', which:27 /* escape */})
+      this.sandbox.should.not.have_tag 'form'
+    end
+    
+    it 'will not restore ancient view content when escape is triggered after the editor has closed'
+      this.editor().find(':input').val('fnord').submit()
+      this.sandbox.should.have_text 'fnord'
+      // try to get the handler to fire even if it shouldn't
+      $(document).trigger({type:'keyup', which:27 /* escape */})
+      this.sandbox.trigger({type:'keyup', which:27 /* escape */})
+      this.sandbox.should.have_text 'fnord'
     end
   end
   
