@@ -1,5 +1,5 @@
 /*
- * Envjs core-env.1.2.0.0 
+ * Envjs core-env.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -30,16 +30,19 @@ var Envjs = function(){
         window.location = arguments[0];
     }
     return;
-};
+},
+__this__ = this;
 
 //eg "Mozilla"
 Envjs.appCodeName  = "Envjs";
-//eg "Gecko/20070309 Firefox/2.0.0.3"
-Envjs.appName      = "Resig/20070309 PilotFish/1.2.0.1";
 
+//eg "Gecko/20070309 Firefox/2.0.0.3"
+Envjs.appName      = "Resig/20070309 PilotFish/1.2.0.2";
+
+Envjs.version = "1.6";//?
 
 /*
- * Envjs core-env.1.2.0.0 
+ * Envjs core-env.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -89,7 +92,9 @@ Envjs.scriptTypes = {
  * @param {Object} script
  * @param {Object} e
  */
-Envjs.onScriptLoadError = function(script, e){};
+Envjs.onScriptLoadError = function(script, e){
+    console.log('error loading script %s %s', script, e);
+};
 
 
 /**
@@ -98,18 +103,17 @@ Envjs.onScriptLoadError = function(script, e){};
  */
 Envjs.loadInlineScript = function(script){
     var tmpFile;
-    try{
-        if(Envjs.DEBUG_ENABLED){
-            //
-            Envjs.writeToTempFile(script.text, 'js') ;
-            Envjs.load(tmpFile);
-        }else{
-            eval(script.text);
-        }
-    }catch(e){
-        Envjs.onScriptLoadError(script, e);
-    }
+    tmpFile = Envjs.writeToTempFile(script.text, 'js') ;
+    load(tmpFile);
 };
+
+/**
+ * Should evaluate script in some context
+ * @param {Object} context
+ * @param {Object} source
+ * @param {Object} name
+ */
+Envjs.eval = function(context, source, name){};
 
 
 /**
@@ -118,18 +122,16 @@ Envjs.loadInlineScript = function(script){
  * @param {Object} parser
  */
 Envjs.loadLocalScript = function(script){
-    console.debug("loading script %s", script);
+    //console.log("loading script %s", script);
     var types, 
         src, 
         i, 
         base,
         filename,
-        // SMP: see also the note in html/document.js about script.type
-        script_type = script.type === null ? 
-            "text/javascript" : script.type;
+        xhr;
     
-    if(script_type){
-        types = script_type?script_type.split(";"):[];
+    if(script.type){
+        types = script.type.split(";");
         for(i=0;i<types.length;i++){
             if(Envjs.scriptTypes[types[i]]){
                 //ok this script type is allowed
@@ -138,49 +140,63 @@ Envjs.loadLocalScript = function(script){
             if(i+1 == types.length)
                 return false;
         }
-    }else{
-        try{
-            //handle inline scripts
-            if(!script.src)
-                Envjs.loadInlineScript(script);
-             return true
-        }catch(e){
-            //Envjs.error("Error loading script.", e);
-            Envjs.onScriptLoadError(script, e);
-            return false;
+    }
+    
+    try{
+        //handle inline scripts
+        if(!script.src.length){
+            Envjs.loadInlineScript(script);
+            return true;
         }
+    }catch(e){
+        //Envjs.error("Error loading script.", e);
+        Envjs.onScriptLoadError(script, e);
+        return false;
     }
         
         
-    if(script.src){
-        //$env.info("loading allowed external script :" + script.src);
-        //lets you register a function to execute 
-        //before the script is loaded
-        if(Envjs.beforeScriptLoad){
-            for(src in Envjs.beforeScriptLoad){
-                if(script.src.match(src)){
-                    Envjs.beforeScriptLoad[src](script);
-                }
+    //console.log("loading allowed external script %s", script.src);
+    
+    //lets you register a function to execute 
+    //before the script is loaded
+    if(Envjs.beforeScriptLoad){
+        for(src in Envjs.beforeScriptLoad){
+            if(script.src.match(src)){
+                Envjs.beforeScriptLoad[src](script);
             }
         }
-        base = "" + script.ownerDocument.location;
-        //filename = Envjs.location(script.src.match(/([^\?#]*)/)[1], base );
-        filename = Envjs.location(script.src, base );
-        try {                      
-            load(filename);
-            console.log('loaded %s', filename);
-        } catch(e) {
-            console.log("could not load script %s \n %s", filename, e );
-            Envjs.onScriptLoadError(script, e);
-            return false;
-        }
-        //lets you register a function to execute 
-        //after the script is loaded
-        if(Envjs.afterScriptLoad){
-            for(src in Envjs.afterScriptLoad){
-                if(script.src.match(src)){
-                    Envjs.afterScriptLoad[src](script);
-                }
+    }
+    base = "" + script.ownerDocument.location;
+    //filename = Envjs.uri(script.src.match(/([^\?#]*)/)[1], base );
+    //console.log('base %s', base);
+    filename = Envjs.uri(script.src, base);
+    try {          
+        xhr = new XMLHttpRequest();
+        xhr.open("GET", filename, false/*syncronous*/);
+        //console.log("loading external script %s", filename);
+        xhr.onreadystatechange = function(){
+            //console.log("readyState %s", xhr.readyState);
+            if(xhr.readyState === 4){
+                //TODO this is rhino specific
+                Envjs.eval(
+                    script.ownerDocument.ownerWindow,
+                    xhr.responseText,
+                    filename
+                );
+            }    
+        };
+        xhr.send(null, false);
+    } catch(e) {
+        console.log("could not load script %s \n %s", filename, e );
+        Envjs.onScriptLoadError(script, e);
+        return false;
+    }
+    //lets you register a function to execute 
+    //after the script is loaded
+    if(Envjs.afterScriptLoad){
+        for(src in Envjs.afterScriptLoad){
+            if(script.src.match(src)){
+                Envjs.afterScriptLoad[src](script);
             }
         }
     }
@@ -191,7 +207,7 @@ Envjs.loadLocalScript = function(script){
  * synchronizes thread modifications
  * @param {Function} fn
  */
-Envjs.sync = function(fn){}
+Envjs.sync = function(fn){};
 
 /**
  * sleep thread for specified duration
@@ -210,7 +226,7 @@ Envjs.WAIT_INTERVAL = 100;//milliseconds
  * @param {Object} path
  * @param {Object} base
  */
-Envjs.location = function(path, base){};
+Envjs.uri = function(path, base){};
     
     
 /**
@@ -281,11 +297,21 @@ Envjs.loadFrame = function(frame, url){
             frame.contentWindow = null; 
         }
         
-        frame.contentWindow = {};
+        //create a new scope for the window proxy
+        //platforms will need to override this function
+        //to make sure the scope is global-like
+        frame.contentWindow = (function(){return this;})();
         new Window(frame.contentWindow, window);
-       
+        
+        //I dont think frames load asynchronously in firefox
+        //and I think the tests have verified this but for
+        //some reason I'm less than confident... Are there cases?
+        frame.contentDocument = frame.contentWindow.document;
         frame.contentDocument.async = false;
-        frame.contentWindow.location = url;
+        if(url){
+            //console.log('envjs.loadFrame async %s', frame.contentDocument.async);
+            frame.contentWindow.location = url;
+        }
     } catch(e) {
         console.log("failed to load frame content: from %s %s", url, e);
     }
@@ -300,7 +326,748 @@ Envjs.loadFrame = function(frame, url){
 
 })();
 /*
- * Envjs dom.1.2.0.0 
+ * Envjs rhino-env.1.2.0.2 
+ * Pure JavaScript Browser Environment
+ * By John Resig <http://ejohn.org/> and the Envjs Team
+ * Copyright 2008-2010 John Resig, under the MIT License
+ */
+
+var __context__ = Packages.org.mozilla.javascript.Context.getCurrentContext();
+
+Envjs.platform       = "Rhino";
+Envjs.revision       = "1.7.0.rc2";
+/*
+ * Envjs rhino-env.1.2.0.2 
+ * Pure JavaScript Browser Environment
+ * By John Resig <http://ejohn.org/> and the Envjs Team
+ * Copyright 2008-2010 John Resig, under the MIT License
+ */
+
+(function(){
+
+
+
+
+
+/**
+ * @author john resig
+ */
+// Helper method for extending one object with another.  
+function __extend__(a,b) {
+    for ( var i in b ) {
+        var g = b.__lookupGetter__(i), s = b.__lookupSetter__(i);
+        if ( g || s ) {
+            if ( g ) a.__defineGetter__(i, g);
+            if ( s ) a.__defineSetter__(i, s);
+        } else
+            a[i] = b[i];
+    } return a;
+};
+/**
+ * Writes message to system out
+ * @param {Object} message
+ */
+Envjs.log = function(message){
+    print(message);
+};
+
+Envjs.lineSource = function(e){
+    return e&&e.rhinoException?e.rhinoException.lineSource():"(line ?)";
+};
+/**
+ * load and execute script tag text content
+ * @param {Object} script
+ */
+Envjs.loadInlineScript = function(script){
+    if(script.ownerDocument.ownerWindow){
+        Envjs.eval(
+            script.ownerDocument.ownerWindow,
+            script.text,
+            'eval('+script.text.substring(0,16)+'...):'+new Date().getTime()
+        );
+    }else{
+        Envjs.eval(
+            __this__,
+            script.text,
+            'eval('+script.text.substring(0,16)+'...):'+new Date().getTime()
+        );
+    }
+    //console.log('evaluated at scope %s \n%s', 
+    //    script.ownerDocument.ownerWindow.guid, script.text);
+};
+
+
+Envjs.eval = function(context, source, name){
+    __context__.evaluateString(
+        context,
+        source,
+        name,
+        0,
+        null
+    );
+}
+
+//Temporary patch for parser module
+Packages.org.mozilla.javascript.Context.
+    getCurrentContext().setOptimizationLevel(-1);
+    
+/**
+ * Rhino provides a very succinct 'sync'
+ * @param {Function} fn
+ */
+try{
+    Envjs.sync = sync;
+    Envjs.spawn = spawn;
+}catch(e){
+    //sync unavailable on AppEngine 
+    Envjs.sync = function(fn){
+        console.log('Threadless platform, sync is safe');
+        return fn;
+    };
+    Envjs.spawn = function(fn){
+        console.log('Threadless platform, spawn shares main thread.');
+        return fn();
+    };
+}
+
+/**
+ * sleep thread for specified duration
+ * @param {Object} millseconds
+ */
+Envjs.sleep = function(millseconds){
+    try{
+        java.lang.Thread.currentThread().sleep(millseconds);
+    }catch(e){
+        console.log('Threadless platform, cannot sleep.');
+    }
+};
+
+/**
+ * provides callback hook for when the system exits
+ */
+Envjs.onExit = function(callback){
+    var rhino = Packages.org.mozilla.javascript,
+        contextFactory =  __context__.getFactory(),
+        listener = new rhino.ContextFactory.Listener({
+            contextReleased: function(context){
+                if(context === __context__)
+                    console.log('context released', context);
+                contextFactory.removeListener(this);
+                if(callback)
+                    callback();
+            }
+        });
+    contextFactory.addListener(listener);
+};
+
+
+/**
+ * resolves location relative to doc location
+ * @param {Object} path
+ * @param {Object} path
+ * @param {Object} base
+ */
+Envjs.uri = function(path, base){
+    var protocol = new RegExp('(^file\:|^http\:|^https\:)'),
+        m = protocol.exec(path),
+        baseURI, absolutepath;
+    if(m&&m.length>1){
+        return (new java.net.URL(path).toString()+'')
+            .replace('file:/', 'file:///');
+    }else if(base){
+        return (new java.net.URL(new java.net.URL(base), path)+'')
+            .replace('file:/', 'file:///');
+    }else{
+        //return an absolute url from a url relative to the window location
+        //TODO: window should not be inlined here. this should be passed as a 
+        //      parameter to Envjs.location :DONE
+        if(document){
+            baseURI = document.baseURI;
+            if(baseURI == 'about:blank'){
+                baseURI = (java.io.File(path).toURL().toString()+'')
+                        .replace('file:/', 'file:///');
+                //console.log('baseURI %s', baseURI);
+                return baseURI;
+            }else{
+                if(path.match(/^\//)){
+                    //absolute path change
+                    absolutepath = (new Location(baseURI)).pathname;
+                    return baseURI.substring(0, baseURI.lastIndexOf(absolutepath)) + path;
+                }else{
+                    //relative path change
+                    base = baseURI.substring(0, baseURI.lastIndexOf('/'));
+                    if(base.length > 0){
+                        return base + '/' + path;
+                    }else{
+                        return (new java.io.File(path).toURL().toString()+'')
+                            .replace('file:/', 'file:///');
+                    }
+                }
+            }
+        }else{
+            return (new java.io.File(path).toURL().toString()+'')
+                        .replace('file:/', 'file:///');
+        }
+    }
+};
+
+/**
+ * 
+ * @param {Object} fn
+ * @param {Object} onInterupt
+ */
+Envjs.runAsync = function(fn, onInterupt){
+    ////Envjs.debug("running async");
+    var running = true,
+        run;
+    
+    try{
+        run = Envjs.sync(function(){ 
+            fn();
+        });
+        Envjs.spawn(run);
+    }catch(e){
+        console.log("error while running async operation", e);
+        try{if(onInterrupt)onInterrupt(e)}catch(ee){};
+    }
+};
+
+/**
+ * Used to write to a local file
+ * @param {Object} text
+ * @param {Object} url
+ */
+Envjs.writeToFile = function(text, url){
+    //Envjs.debug("writing text to url : " + url);
+    var out = new java.io.FileWriter( 
+        new java.io.File( 
+            new java.net.URI(url.toString()))); 
+    out.write( text, 0, text.length );
+    out.flush();
+    out.close();
+};
+    
+/**
+ * Used to write to a local file
+ * @param {Object} text
+ * @param {Object} suffix
+ */
+Envjs.writeToTempFile = function(text, suffix){
+    //Envjs.debug("writing text to temp url : " + suffix);
+    // Create temp file.
+    var temp = java.io.File.createTempFile("envjs-tmp", suffix);
+
+    // Delete temp file when program exits.
+    temp.deleteOnExit();
+
+    // Write to temp file
+    var out = new java.io.FileWriter(temp);
+    out.write(text, 0, text.length);
+    out.close();
+    return temp.getAbsolutePath().toString()+'';
+};
+    
+
+/**
+ * Used to delete a local file
+ * @param {Object} url
+ */
+Envjs.deleteFile = function(url){
+    var file = new java.io.File( new java.net.URI( url ) );
+    file["delete"]();
+};
+    
+/**
+ * establishes connection and calls responsehandler
+ * @param {Object} xhr
+ * @param {Object} responseHandler
+ * @param {Object} data
+ */
+Envjs.connection = function(xhr, responseHandler, data){
+    var url = java.net.URL(xhr.url),
+        connection;
+    if ( /^file\:/.test(url) ) {
+        try{
+            if ( xhr.method == "PUT" ) {
+                var text =  data || "" ;
+                Envjs.writeToFile(text, url);
+            } else if ( xhr.method == "DELETE" ) {
+                Envjs.deleteFile(url);
+            } else {
+                connection = url.openConnection();
+                connection.connect();
+                //try to add some canned headers that make sense
+                
+                try{
+                    if(xhr.url.match(/html$/)){
+                        xhr.responseHeaders["Content-Type"] = 'text/html';
+                    }else if(xhr.url.match(/.xml$/)){
+                        xhr.responseHeaders["Content-Type"] = 'text/xml';
+                    }else if(xhr.url.match(/.js$/)){
+                        xhr.responseHeaders["Content-Type"] = 'text/javascript';
+                    }else if(xhr.url.match(/.json$/)){
+                        xhr.responseHeaders["Content-Type"] = 'application/json';
+                    }else{
+                        xhr.responseHeaders["Content-Type"] = 'text/plain';
+                    }
+                //xhr.responseHeaders['Last-Modified'] = connection.getLastModified();
+                //xhr.responseHeaders['Content-Length'] = headerValue+'';
+                //xhr.responseHeaders['Date'] = new Date()+'';*/
+                }catch(e){
+                    console.log('failed to load response headers',e);
+                }
+            }
+        }catch(e){
+            console.log('failed to open file %s %s', url, e);
+            connection = null;
+            xhr.readyState = 4;
+            xhr.statusText = "Local File Protocol Error";
+            xhr.responseText = "<html><head/><body><p>"+ e+ "</p></body></html>";
+        }
+    } else { 
+        connection = url.openConnection();
+        connection.setRequestMethod( xhr.method );
+        
+        // Add headers to Java connection
+        for (var header in xhr.headers){
+            connection.addRequestProperty(header+'', xhr.headers[header]+'');
+        }
+        
+        //write data to output stream if required
+        if(data&&data.length&&data.length>0){
+             if ( xhr.method == "PUT" || xhr.method == "POST" ) {
+                connection.setDoOutput(true);
+                var outstream = connection.getOutputStream(),
+                    outbuffer = new java.lang.String(data).getBytes('UTF-8');
+                
+                outstream.write(outbuffer, 0, outbuffer.length);
+                outstream.close();
+            }
+        }else{
+            connection.connect();
+        }
+    }
+    
+    if(connection){
+        try{
+            var respheadlength = connection.getHeaderFields().size();
+            // Stick the response headers into responseHeaders
+            for (var i = 0; i < respheadlength; i++) { 
+                var headerName = connection.getHeaderFieldKey(i); 
+                var headerValue = connection.getHeaderField(i); 
+                if (headerName)
+                    xhr.responseHeaders[headerName+''] = headerValue+'';
+            }
+        }catch(e){
+            console.log('failed to load response headers \n%s',e);
+        }
+        
+        xhr.readyState = 4;
+        xhr.status = parseInt(connection.responseCode,10) || undefined;
+        xhr.statusText = connection.responseMessage || "";
+        
+        var contentEncoding = connection.getContentEncoding() || "utf-8",
+            baos = new java.io.ByteArrayOutputStream(),
+            buffer = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024),
+            length,
+            stream = null,
+            responseXML = null;
+
+        try{
+            stream = (contentEncoding.equalsIgnoreCase("gzip") || 
+                      contentEncoding.equalsIgnoreCase("decompress") )?
+                new java.util.zip.GZIPInputStream(connection.getInputStream()) :
+                connection.getInputStream();
+        }catch(e){
+            if (connection.getResponseCode() == 404){
+                console.log('failed to open connection stream \n %s %s',
+                          e.toString(), e);
+            }else{
+                console.log('failed to open connection stream \n %s %s',
+                           e.toString(), e);
+            }
+            stream = connection.getErrorStream();
+        }
+        
+        while ((length = stream.read(buffer)) != -1) {
+            baos.write(buffer, 0, length);
+        }
+
+        baos.close();
+        stream.close();
+
+        xhr.responseText = java.nio.charset.Charset.forName("UTF-8").
+            decode(java.nio.ByteBuffer.wrap(baos.toByteArray())).toString()+"";
+            
+    }
+    if(responseHandler){
+        //Envjs.debug('calling ajax response handler');
+        responseHandler();
+    }
+};
+
+//Since we're running in rhino I guess we can safely assume
+//java is 'enabled'.  I'm sure this requires more thought
+//than I've given it here
+Envjs.javaEnabled = true;   
+
+Envjs.tmpdir         = java.lang.System.getProperty("java.io.tmpdir"); 
+Envjs.os_name        = java.lang.System.getProperty("os.name"); 
+Envjs.os_arch        = java.lang.System.getProperty("os.arch"); 
+Envjs.os_version     = java.lang.System.getProperty("os.version"); 
+Envjs.lang           = java.lang.System.getProperty("user.lang"); 
+    
+
+/**
+ * 
+ * @param {Object} frameElement
+ * @param {Object} url
+ */
+Envjs.loadFrame = function(frame, url){
+    try {
+        if(frame.contentWindow){
+            //mark for garbage collection
+            frame.contentWindow = null; 
+        }
+        
+        //create a new scope for the window proxy
+        frame.contentWindow = Envjs.proxy();
+        new Window(frame.contentWindow, window);
+        
+        //I dont think frames load asynchronously in firefox
+        //and I think the tests have verified this but for
+        //some reason I'm less than confident... Are there cases?
+        frame.contentDocument = frame.contentWindow.document;
+        frame.contentDocument.async = false;
+        if(url){
+            //console.log('envjs.loadFrame async %s', frame.contentDocument.async);
+            frame.contentWindow.location = url;
+        }
+    } catch(e) {
+        console.log("failed to load frame content: from %s %s", url, e);
+    }
+};
+
+/**
+ * unloadFrame
+ * @param {Object} frame
+ */
+Envjs.unloadFrame = function(frame){
+    var all, length, i;
+    try{
+        //clean up all the nodes
+        /*all = frame.contentDocument.all,
+        length = all.length;
+        for(i=0;i<length;i++){
+            all[i].removeEventListeners('*', null, null);
+            delete all.pop();
+        }*/
+        delete frame.contentDocument;
+        frame.contentDocument = null;
+        if(frame.contentWindow){
+            frame.contentWindow.close();
+        }
+        gc();
+    }catch(e){
+        console.log(e);
+    }
+};
+
+/**
+ * Makes an object window-like by proxying object accessors
+ * @param {Object} scope
+ * @param {Object} parent
+ */
+Envjs.proxy = function(scope, parent){
+
+    try{   
+        if(scope+'' == '[object global]'){
+            return scope
+        }else{
+            return  __context__.initStandardObjects();
+        }
+    }catch(e){
+        console.log('failed to init standard objects %s %s \n%s', scope, parent, e);
+    }
+    
+};
+
+/**
+ * @author john resig & the envjs team
+ * @uri http://www.envjs.com/
+ * @copyright 2008-2010
+ * @license MIT
+ */
+
+})();
+
+/**
+ * @author envjs team
+ */
+var Console,
+    console;
+
+/*
+ * Envjs console.1.2.0.0 
+ * Pure JavaScript Browser Environment
+ * By John Resig <http://ejohn.org/> and the Envjs Team
+ * Copyright 2008-2010 John Resig, under the MIT License
+ */
+
+(function(){
+
+
+
+
+
+/**
+ * @author envjs team
+ * borrowed 99%-ish with love from firebug-lite
+ */
+Console = function(module){
+    var $level,
+        $logger,
+        $null = function(){};
+    
+    
+    if(Envjs[module] && Envjs[module].loglevel){
+        $level = Envjs.module.loglevel;
+        $logger = {
+            log: function(level){
+                logFormatted(arguments, (module)+" ");
+            },
+            debug: $level>1 ? $null: function() {
+                logFormatted(arguments, (module)+" debug");
+            },
+            info: $level>2 ? $null:function(){
+                logFormatted(arguments, (module)+" info");
+            },
+            warn: $level>3 ? $null:function(){
+                logFormatted(arguments, (module)+" warning");
+            },
+            error: $level>4 ? $null:function(){
+                logFormatted(arguments, (module)+" error");
+            }
+        };
+    }else{
+        $logger = {
+            log: function(level){
+                logFormatted(arguments, "");
+            },
+            debug: $null,
+            info: $null,
+            warn: $null,
+            error: $null
+        };
+    }
+   
+    return $logger;
+};       
+
+console = new Console("console",1);
+    
+function logFormatted(objects, className)
+{
+    var html = [];
+
+    var format = objects[0];
+    var objIndex = 0;
+
+    if (typeof(format) != "string")
+    {
+        format = "";
+        objIndex = -1;
+    }
+
+    var parts = parseFormat(format);
+    for (var i = 0; i < parts.length; ++i)
+    {
+        var part = parts[i];
+        if (part && typeof(part) == "object")
+        {
+            var object = objects[++objIndex];
+            part.appender(object, html);
+        }
+        else
+            appendText(part, html);
+    }
+
+    for (var i = objIndex+1; i < objects.length; ++i)
+    {
+        appendText(" ", html);
+        
+        var object = objects[i];
+        if (typeof(object) == "string")
+            appendText(object, html);
+        else
+            appendObject(object, html);
+    }
+    
+    Envjs.log(html.join(' '));
+}
+
+function parseFormat(format)
+{
+    var parts = [];
+
+    var reg = /((^%|[^\\]%)(\d+)?(\.)([a-zA-Z]))|((^%|[^\\]%)([a-zA-Z]))/;    
+    var appenderMap = {s: appendText, d: appendInteger, i: appendInteger, f: appendFloat};
+
+    for (var m = reg.exec(format); m; m = reg.exec(format))
+    {
+        var type = m[8] ? m[8] : m[5];
+        var appender = type in appenderMap ? appenderMap[type] : appendObject;
+        var precision = m[3] ? parseInt(m[3]) : (m[4] == "." ? -1 : 0);
+
+        parts.push(format.substr(0, m[0][0] == "%" ? m.index : m.index+1));
+        parts.push({appender: appender, precision: precision});
+
+        format = format.substr(m.index+m[0].length);
+    }
+
+    parts.push(format);
+
+    return parts;
+}
+
+function escapeHTML(value)
+{
+   return value;
+}
+
+function objectToString(object)
+{
+    try
+    {
+        return object+"";
+    }
+    catch (exc)
+    {
+        return null;
+    }
+}
+
+// ********************************************************************************************
+
+function appendText(object, html)
+{
+    html.push(escapeHTML(objectToString(object)));
+}
+
+function appendNull(object, html)
+{
+    html.push(escapeHTML(objectToString(object)));
+}
+
+function appendString(object, html)
+{
+    html.push(escapeHTML(objectToString(object)));
+}
+
+function appendInteger(object, html)
+{
+    html.push(escapeHTML(objectToString(object)));
+}
+
+function appendFloat(object, html)
+{
+    html.push(escapeHTML(objectToString(object)));
+}
+
+function appendFunction(object, html)
+{
+    var reName = /function ?(.*?)\(/;
+    var m = reName.exec(objectToString(object));
+    var name = m ? m[1] : "function";
+    html.push(escapeHTML(name));
+}
+
+function appendObject(object, html)
+{
+    try
+    {
+        if (object == undefined)
+            appendNull("undefined", html);
+        else if (object == null)
+            appendNull("null", html);
+        else if (typeof object == "string")
+            appendString(object, html);
+        else if (typeof object == "number")
+            appendInteger(object, html);
+        else if (typeof object == "function")
+            appendFunction(object, html);
+        else if (object.nodeType == 1)
+            appendSelector(object, html);
+        else if (typeof object == "object")
+            appendObjectFormatted(object, html);
+        else
+            appendText(object, html);
+    }
+    catch (exc)
+    {
+    }
+}
+    
+function appendObjectFormatted(object, html)
+{
+    var text = objectToString(object);
+    var reObject = /\[object (.*?)\]/;
+
+    var m = reObject.exec(text);
+    html.push( m ? m[1] : text)
+}
+
+function appendSelector(object, html)
+{
+
+    html.push(escapeHTML(object.nodeName.toLowerCase()));
+    if (object.id)
+        html.push(escapeHTML(object.id));
+    if (object.className)
+        html.push(escapeHTML(object.className));
+
+}
+
+function appendNode(node, html)
+{
+    if (node.nodeType == 1)
+    {
+        html.push( node.nodeName.toLowerCase());
+
+        for (var i = 0; i < node.attributes.length; ++i)
+        {
+            var attr = node.attributes[i];
+            if (!attr.specified)
+                continue;
+            
+            html.push( attr.nodeName.toLowerCase(),escapeHTML(attr.nodeValue))
+        }
+
+        if (node.firstChild)
+        {
+            for (var child = node.firstChild; child; child = child.nextSibling)
+                appendNode(child, html);
+                
+            html.push( node.nodeName.toLowerCase());
+        }
+    }
+    else if (node.nodeType == 3)
+    {
+        html.push(escapeHTML(node.nodeValue));
+    }
+};
+
+
+/**
+ * @author john resig & the envjs team
+ * @uri http://www.envjs.com/
+ * @copyright 2008-2010
+ * @license MIT
+ */
+
+})();
+/*
+ * Envjs dom.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -334,12 +1101,13 @@ var Attr,
     ProcessingInstruction,
     Text,
     Range,
-    XMLSerializer;
+    XMLSerializer,
+    DOMParser;
 
 
 
 /*
- * Envjs dom.1.2.0.0 
+ * Envjs dom.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -389,6 +1157,7 @@ NodeList = function(ownerDocument, parentNode) {
     this._readonly = false;
     __setArray__(this, []);
 };
+
 __extend__(NodeList.prototype, {
     item : function(index) {
         var ret = null;
@@ -586,8 +1355,7 @@ var __cloneNodes__ = function(nodelist, deep, parentNode) {
  * @param  parentNode    : Node - the node that the NamedNodeMap is attached to (or null)
  */
 NamedNodeMap = function(ownerDocument, parentNode) {
-    this.NodeList = NodeList;
-    this.NodeList(ownerDocument, parentNode);
+    NodeList.apply(this, arguments);
     __setArray__(this, []);
 };
 NamedNodeMap.prototype = new NodeList;
@@ -597,7 +1365,7 @@ __extend__(NamedNodeMap.prototype, {
     },
     getNamedItem : function(name) {
         var ret = null;
-        
+        //console.log('NamedNodeMap getNamedItem %s', name);
         // test that Named Node exists
         var itemIndex = __findNamedItemIndex__(this, name);
         
@@ -609,6 +1377,7 @@ __extend__(NamedNodeMap.prototype, {
         return ret;                                    
     },
     setNamedItem : function(arg) {
+      //console.log('setNamedItem %s', arg);
       // test for exceptions
       if (__ownerDocument__(this).implementation.errorChecking) {
             // throw Exception if arg was not created by this Document
@@ -627,10 +1396,12 @@ __extend__(NamedNodeMap.prototype, {
             }
       }
     
+     //console.log('setNamedItem __findNamedItemIndex__ ');
       // get item index
       var itemIndex = __findNamedItemIndex__(this, arg.name);
       var ret = null;
     
+     //console.log('setNamedItem __findNamedItemIndex__ %s', itemIndex);
       if (itemIndex > -1) {                          // found it!
             ret = this[itemIndex];                // use existing Attribute
         
@@ -643,13 +1414,19 @@ __extend__(NamedNodeMap.prototype, {
             }
       } else {
             // add new NamedNode
+           //console.log('setNamedItem add new named node map (by index)');
             Array.prototype.push.apply(this, [arg]);
-            this[arg.name.toLowerCase()] = arg;
+           //console.log('setNamedItem add new named node map (by name) %s %s', arg, arg.name);
+            this[arg.name] = arg;
+           //console.log('finsished setNamedItem add new named node map (by name) %s', arg.name);
+            
       }
     
+     //console.log('setNamedItem parentNode');
       arg.ownerElement = this.parentNode;            // update ownerElement
-    
-      return ret;                                    // return old node or null
+      // return old node or new node
+     //console.log('setNamedItem exit');
+      return ret;                                    
     },
     removeNamedItem : function(name) {
           var ret = null;
@@ -736,7 +1513,7 @@ __extend__(NamedNodeMap.prototype, {
         
         // return old node or null
         return ret;
-        console.log('finished setNamedItemNS %s', arg);
+        //console.log('finished setNamedItemNS %s', arg);
     },
     removeNamedItemNS : function(namespaceURI, localName) {
           var ret = null;
@@ -779,6 +1556,9 @@ __extend__(NamedNodeMap.prototype, {
           }
         
           return ret;
+    },
+    toString : function(){
+        return "[object NamedNodeMap]";
     }
 
 });
@@ -796,17 +1576,19 @@ var __findNamedItemIndex__ = function(namednodemap, name, isnsmap) {
     // loop through all nodes
     for (var i=0; i<namednodemap.length; i++) {
         // compare name to each node's nodeName
-        if(isnsmap){
+        if(namednodemap[i].localName && name && isnsmap){
             if (namednodemap[i].localName.toLowerCase() == name.toLowerCase()) {
                 // found it!         
                 ret = i;
                 break;
             }
         }else{
-            if (namednodemap[i].name.toLowerCase() == name.toLowerCase()) {         
-                // found it!
-                ret = i;
-                break;
+            if(namednodemap[i].name && name){
+                if (namednodemap[i].name.toLowerCase() == name.toLowerCase()) {         
+                    // found it!
+                    ret = i;
+                    break;
+                }
             }
         }
     }
@@ -960,12 +1742,6 @@ Node = function(ownerDocument) {
     this.nodeName = "";
     this.nodeValue = null;
     
-    // The parent of this node. All nodes, except Document, DocumentFragment, 
-    // and Attr may have a parent.  However, if a node has just been created 
-    // and not yet added to the tree, or if it has been removed from the tree, 
-    // this is null
-    this.parentNode      = null;
-    
     // A NodeList that contains all children of this node. If there are no 
     // children, this is a NodeList containing no nodes.  The content of the 
     // returned NodeList is "live" in the sense that, for instance, changes to 
@@ -985,12 +1761,22 @@ Node = function(ownerDocument) {
     // The node immediately following this node. If there is no such node, 
     // this is null.
     this.nextSibling     = null;
-    // The Document object associated with this node
-    this.ownerDocument = ownerDocument;
+    
     this.attributes = null;
     // The namespaces in scope for this node
     this._namespaces = new NamespaceNodeMap(ownerDocument, this);  
     this._readonly = false;
+    
+    //IMPORTANT: These must come last so rhino will not iterate parent 
+    //           properties before child properties.  (qunit.equiv issue)
+    
+    // The parent of this node. All nodes, except Document, DocumentFragment, 
+    // and Attr may have a parent.  However, if a node has just been created 
+    // and not yet added to the tree, or if it has been removed from the tree, 
+    // this is null
+    this.parentNode      = null;
+    // The Document object associated with this node
+    this.ownerDocument = ownerDocument;
     
 };
 
@@ -1008,6 +1794,15 @@ Node.DOCUMENT_TYPE_NODE          = 10;
 Node.DOCUMENT_FRAGMENT_NODE      = 11;
 Node.NOTATION_NODE               = 12;
 Node.NAMESPACE_NODE              = 13;
+
+Node.DOCUMENT_POSITION_EQUAL        = 0x00;
+Node.DOCUMENT_POSITION_DISCONNECTED = 0x01;
+Node.DOCUMENT_POSITION_PRECEDING    = 0x02;
+Node.DOCUMENT_POSITION_FOLLOWING    = 0x04;
+Node.DOCUMENT_POSITION_CONTAINS     = 0x08;
+Node.DOCUMENT_POSITION_CONTAINED_BY = 0x10;
+Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC      = 0x20;
+
 
 __extend__(Node.prototype, {
     get localName(){
@@ -1035,7 +1830,14 @@ __extend__(Node.prototype, {
         }
     },
     get textContent(){
-        return this.nodeValue||"";
+        return __recursivelyGatherText__(this);
+    },
+    set textContent(newText){
+        while(this.firstChild != null){
+            this.removeChild( this.firstChild );
+        }
+        var text = this.ownerDocument.createTextNode(newText);
+        this.appendChild(text);
     },
     insertBefore : function(newChild, refChild) {
         var prevNode;
@@ -1290,7 +2092,7 @@ __extend__(Node.prototype, {
         var newChildParent = newChild.parentNode;
         if (newChildParent) {
             // remove it
-            console.debug('removing node %s', newChild);
+           //console.debug('removing node %s', newChild);
             newChildParent.removeChild(newChild);
         }
     
@@ -1497,20 +2299,80 @@ __extend__(Node.prototype, {
         return !!node;
     },
     compareDocumentPosition : function(b){
-        var a = this;
-        var number = (a != b && a.contains(b) && 16) + (a != b && b.contains(a) && 8);
-        //find position of both
-        var all = document.getElementsByTagName("*");
-        var my_location = 0, node_location = 0;
-        for(var i=0; i < all.length; i++){
-            if(all[i] == a) my_location = i;
-            if(all[i] == b) node_location = i;
-            if(my_location && node_location) break;
+        //console.log("comparing document position %s %s", this, b);
+        var i, 
+            length, 
+            a = this, 
+            parent,
+            aparents,
+            bparents;
+        //handle a couple simpler case first
+        if(a === b)
+            return Node.DOCUMENT_POSITION_EQUAL;
+        
+        if(a.ownerDocument !== b.ownerDocument)
+            return Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC|
+               Node.DOCUMENT_POSITION_FOLLOWING|
+               Node.DOCUMENT_POSITION_DISCONNECTED;
+            
+        if(a.parentNode === b.parentNode){
+            length = a.parentNode.childNodes.length;
+            for(i=0;i<length;i++){
+                if(a.parentNode.childNodes[i] === a){
+                    return Node.DOCUMENT_POSITION_FOLLOWING;
+                }else if(a.parentNode.childNodes[i] === b){
+                    return Node.DOCUMENT_POSITION_PRECEDING;
+                }
+            }
         }
-        number += (my_location < node_location && 4)
-        number += (my_location > node_location && 2)
-        return number;
-    } 
+        
+        if(a.contains(b))
+            return Node.DOCUMENT_POSITION_CONTAINED_BY|
+                   Node.DOCUMENT_POSITION_FOLLOWING;
+            
+        if(b.contains(a))
+            return Node.DOCUMENT_POSITION_CONTAINS|
+                   Node.DOCUMENT_POSITION_PRECEDING;
+            
+        aparents = [];
+        parent = a.parentNode;
+        while(parent){
+            aparents[aparents.length] = parent;
+            parent = parent.parentNode;
+        }
+        
+        bparents = [];
+        parent = b.parentNode;
+        while(parent){
+            i = aparents.indexOf(parent);
+            if(i < 0){
+                bparents[bparents.length] = parent;
+                parent = parent.parentNode;
+            }else{
+                //i cant be 0 since we already checked for equal parentNode
+                if(bparents.length > aparents.length){
+                    return Node.DOCUMENT_POSITION_FOLLOWING;
+                }else if(bparents.length < aparents.length){
+                    return Node.DOCUMENT_POSITION_PRECEDING;
+                }else{ 
+                    //common ancestor diverge point
+                    if(i === 0)
+                        return Node.DOCUMENT_POSITION_FOLLOWING;
+                    else
+                        parent = aparents[i-1];
+                        
+                    return parent.compareDocumentPosition(bparents.pop());
+                }
+            }
+        }
+            
+        return Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC|
+               Node.DOCUMENT_POSITION_DISCONNECTED;
+        
+    },
+    toString : function(){
+        return "[object Node]";
+    }
 
 });
 
@@ -1590,9 +2452,20 @@ var __ownerDocument__ = function(node){
     return (node.nodeType == Node.DOCUMENT_NODE)?node:node.ownerDocument;
 };
 
-/**
- * @author envjs team
- */
+
+var __recursivelyGatherText__ = function(aNode) {
+    var accumulateText = "",
+        idx,
+        node;
+    for (idx=0;idx < aNode.childNodes.length;idx++){
+        node = aNode.childNodes.item(idx);
+        if(node.nodeType == Node.TEXT_NODE)
+            accumulateText += node.data;
+        else
+            accumulateText += __recursivelyGatherText__(node);
+    }
+    return accumulateText;
+};
 
 /**
  * function __escapeXML__
@@ -1662,18 +2535,17 @@ function __unescapeXML__(str) {
  * @param  ownerDocument : The Document object associated with this node.
  */
 Namespace = function(ownerDocument) {
-  this.Node = Node;
-  this.Node(ownerDocument);
-  // the name of this attribute
-  this.name      = "";                           
-
-  // If this attribute was explicitly given a value in the original document, 
-  // this is true; otherwise, it is false.
-  // Note that the implementation is in charge of this attribute, not the user.
-  // If the user changes the value of the attribute (even if it ends up having 
-  // the same value as the default value) then the specified flag is 
-  // automatically flipped to true
-  this.specified = false;
+    Node.apply(this, arguments);
+    // the name of this attribute
+    this.name      = "";                           
+    
+    // If this attribute was explicitly given a value in the original document, 
+    // this is true; otherwise, it is false.
+    // Note that the implementation is in charge of this attribute, not the user.
+    // If the user changes the value of the attribute (even if it ends up having 
+    // the same value as the default value) then the specified flag is 
+    // automatically flipped to true
+    this.specified = false;
 };
 Namespace.prototype = new Node;
 __extend__(Namespace.prototype, {
@@ -1701,7 +2573,7 @@ __extend__(Namespace.prototype, {
           return ret;
     },
     toString: function(){
-        return "Namespace #" + this.id;
+        return '[object Namespace]';
     }
 });
 
@@ -1709,12 +2581,10 @@ __extend__(Namespace.prototype, {
 /**
  * @class  CharacterData - parent abstract class for Text and Comment
  * @extends Node
- * @author Jon van Noort (jon@webarcana.com.au)
  * @param  ownerDocument : The Document object associated with this node.
  */
 CharacterData = function(ownerDocument) {
-  this.Node  = Node;
-  this.Node(ownerDocument);
+    Node.apply(this, arguments);
 };
 CharacterData.prototype = new Node;
 __extend__(CharacterData.prototype,{
@@ -1823,6 +2693,9 @@ __extend__(CharacterData.prototype,{
             }
         }
         return ret;
+    },
+    toString : function(){
+        return "[object CharacterData]";
     }
 });
 
@@ -1839,9 +2712,8 @@ __extend__(CharacterData.prototype,{
  * @param  ownerDocument The Document object associated with this node.
  */
 Text = function(ownerDocument) {
-  this.CharacterData  = CharacterData;
-  this.CharacterData(ownerDocument);
-  this.nodeName  = "#text";
+    CharacterData.apply(this, arguments);
+    this.nodeName  = "#text";
 };
 Text.prototype = new CharacterData;
 __extend__(Text.prototype,{
@@ -1904,9 +2776,8 @@ __extend__(Text.prototype,{
  * @param  ownerDocument : The Document object associated with this node.
  */
 CDATASection = function(ownerDocument) {
-  this.Text  = Text;
-  this.Text(ownerDocument);
-  this.nodeName = '#cdata-section';
+    Text.apply(this, arguments);
+    this.nodeName = '#cdata-section';
 };
 CDATASection.prototype = new Text;
 __extend__(CDATASection.prototype,{
@@ -1925,13 +2796,11 @@ __extend__(CDATASection.prototype,{
  *      This represents the content of a comment, i.e., all the 
  *      characters between the starting '<!--' and ending '-->'
  * @extends CharacterData
- * @author Jon van Noort (jon@webarcana.com.au)
  * @param  ownerDocument :  The Document object associated with this node.
  */
 Comment = function(ownerDocument) {
-  this.CharacterData  = CharacterData;
-  this.CharacterData(ownerDocument);
-  this.nodeName  = "#comment";
+    CharacterData.apply(this, arguments);
+    this.nodeName  = "#comment";
 };
 Comment.prototype = new CharacterData;
 __extend__(Comment.prototype, {
@@ -1955,12 +2824,11 @@ __extend__(Comment.prototype, {
  * @param {Document} onwnerDocument
  */
 DocumentType = function(ownerDocument) {
-    this.Node = Node;
-    this.Node(ownerDocument);
+    Node.apply(this, arguments);
     this.systemId = null;
     this.publicId = null;
 };
-DocumentType.prototype = new Node; 
+DocumentType.prototype = new Node;
 __extend__({
     get name(){
         return this.nodeName;
@@ -1973,6 +2841,9 @@ __extend__({
     },
     get notations(){
         return null;
+    },
+    toString : function(){
+        return "[object DocumentType]";
     }
 });
 
@@ -1983,14 +2854,13 @@ __extend__({
  * @param  ownerDocument : The Document object associated with this node.
  */
 Attr = function(ownerDocument) {
-    this.Node = Node;
-    this.Node(ownerDocument);
+    Node.apply(this, arguments);
     // set when Attr is added to NamedNodeMap
     this.ownerElement = null;
     //TODO: our implementation of Attr is incorrect because we don't
     //      treat the value of the attribute as a child text node.
 };
-Attr.prototype = new Node; 
+Attr.prototype = new Node;
 __extend__(Attr.prototype, {
     // the name of this attribute
     get name(){
@@ -2041,29 +2911,16 @@ __extend__(Attr.prototype, {
  * @param  ownerDocument : The Document object associated with this node.
  */
 Element = function(ownerDocument) {
-    this.Node  = Node;
-    this.Node(ownerDocument);
-    
+    Node.apply(this, arguments);
     this.attributes = new NamedNodeMap(this.ownerDocument, this);
 };
 Element.prototype = new Node;
-
 __extend__(Element.prototype, {	
     // The name of the element.
     get tagName(){
         return this.nodeName;  
     },
     
-    get textContent(){
-        return __recursivelyGatherText__(this);
-    },
-    set textContent(newText){
-        while(this.firstChild != null){
-            this.removeChild( this.firstChild );
-        }
-        var text = this.ownerDocument.createTextNode(newText);
-        this.appendChild(text);
-    },
     getAttribute: function(name) {
         var ret = null;
         // if attribute exists, use it
@@ -2077,7 +2934,7 @@ __extend__(Element.prototype, {
     setAttribute : function (name, value) {
         // if attribute exists, use it
         var attr = this.attributes.getNamedItem(name);
-        
+       //console.log('attr %s', attr);
         //I had to add this check because as the script initializes
         //the id may be set in the constructor, and the html element
         //overrides the id property with a getter/setter.
@@ -2085,6 +2942,7 @@ __extend__(Element.prototype, {
             if (attr===null||attr===undefined) {
                 // otherwise create it
                 attr = __ownerDocument__(this).createAttribute(name);  
+               //console.log('attr %s', attr);
             }
             
             
@@ -2106,8 +2964,9 @@ __extend__(Element.prototype, {
             
             // add/replace Attribute in NamedNodeMap
             this.attributes.setNamedItem(attr);
+           //console.log('element setNamedItem %s', attr);
         }else{
-            console.warn('Element has no owner document '+this.tagName+
+           console.warn('Element has no owner document '+this.tagName+
                 '\n\t cant set attribute ' + name + ' = '+value );
         }
     },
@@ -2242,7 +3101,12 @@ __extend__(Element.prototype, {
         attrs = this.attributes;
         attrstring = "";
         for(i=0;i< attrs.length;i++){
-            attrstring += " "+attrs[i].name+'="'+attrs[i].xml+'"';
+            if(attrs[i].name.match('xmlns:'))
+                attrstring += " "+attrs[i].name+'="'+attrs[i].xml+'"';
+        }
+        for(i=0;i< attrs.length;i++){
+            if(!attrs[i].name.match('xmlns:'))
+                attrstring += " "+attrs[i].name+'="'+attrs[i].xml+'"';
         }
         
         if(this.hasChildNodes()){
@@ -2251,7 +3115,7 @@ __extend__(Element.prototype, {
             ret += this.childNodes.xml;
             ret += "</" + this.tagName + ">";
         }else{
-            ret += "<" + this.tagName +ns+"/>";
+            ret += "<" + this.tagName + ns + attrstring +"/>";
         }
         
         return ret;
@@ -2261,18 +3125,6 @@ __extend__(Element.prototype, {
     }
 });
 
-var __recursivelyGatherText__ = function(aNode) {
-    var accumulateText = "";
-    var idx; var n;
-    for (idx=0;idx < aNode.childNodes.length;idx++){
-        n = aNode.childNodes.item(idx);
-        if(n.nodeType == Node.TEXT_NODE)
-            accumulateText += n.data;
-        else
-            accumulateText += __recursivelyGatherText__(n);
-    }
-    return accumulateText;
-};
 
 /**
  * @class  DOMException - raised when an operation is impossible to perform
@@ -2280,7 +3132,7 @@ var __recursivelyGatherText__ = function(aNode) {
  * @param  code : int - the exception code (one of the DOMException constants)
  */
 DOMException = function(code) {
-  this.code = code;
+    this.code = code;
 };
 
 // DOMException constants
@@ -2307,14 +3159,11 @@ DOMException.INVALID_ACCESS_ERR             = 15;
  * @class  DocumentFragment - 
  *      DocumentFragment is a "lightweight" or "minimal" Document object.
  * @extends Node
- * @author orignially Jon van Noort (jon@webarcana.com.au) 
- *      and David Joham (djoham@yahoo.com)
  * @param  ownerDocument :  The Document object associated with this node.
  */
 DocumentFragment = function(ownerDocument) {
-  this.Node = Node;
-  this.Node(ownerDocument);
-  this.nodeName  = "#document-fragment";
+    Node.apply(this, arguments);
+    this.nodeName  = "#document-fragment";
 };
 DocumentFragment.prototype = new Node;
 __extend__(DocumentFragment.prototype,{
@@ -2340,7 +3189,7 @@ __extend__(DocumentFragment.prototype,{
     }
 });
 
-
+ 
 /**
  * @class  ProcessingInstruction - 
  *      The ProcessingInstruction interface represents a 
@@ -2352,8 +3201,7 @@ __extend__(DocumentFragment.prototype,{
  * @param  ownerDocument :  The Document object associated with this node.
  */
 ProcessingInstruction = function(ownerDocument) {
-  this.Node  = Node;
-  this.Node(ownerDocument);
+    Node.apply(this, arguments);
 };
 ProcessingInstruction.prototype = new Node;
 __extend__(ProcessingInstruction.prototype, {
@@ -2366,6 +3214,9 @@ __extend__(ProcessingInstruction.prototype, {
             throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
         }
         this.nodeValue = data;
+    },
+    get textContent(){
+        return this.data;
     },
     get localName(){
         return null;
@@ -2812,6 +3663,9 @@ __extend__(DOMImplementation.prototype,{
       }
 
       return msg;
+    },
+    toString : function(){
+        return "[object DOMImplementation]";
     }
 });
 
@@ -2932,6 +3786,7 @@ Notation = function() {
 Range = function(){
 
 };
+
 __extend__(Range.prototype, {
     get startContainer(){
 
@@ -3000,7 +3855,7 @@ __extend__(Range.prototype, {
 
     },
     toString: function(){
-
+        return '[object Range]';
     },
     detach: function(){
 
@@ -3023,24 +3878,14 @@ Range.END_TO_START                   = 3;
  * @param  implementation : DOMImplementation - the creator Implementation
  */
 Document = function(implementation, docParentWindow) {
-    this.Node = Node;
-    this.Node(this);
+    Node.apply(this, arguments);
     
+    //TODO: Temporary!!! Cnage back to true!!!
     this.async = true;
     // The Document Type Declaration (see DocumentType) associated with this document
     this.doctype = null;
     // The DOMImplementation object that handles this document.
     this.implementation = implementation
-    
-    // "private" variable providing the read-only document.parentWindow property
-    // TODO: I dont think this is a good place to store this info,
-    //       rather some internal function like __parentWindow__(doc)
-    //       would be better.
-    this._parentWindow = docParentWindow;
-    try {
-        if (docParentWindow.$thisWindowsProxyObject)
-            this._parentWindow = docParentWindow.$thisWindowsProxyObject;
-    } catch(e){}
 
     this.nodeName  = "#document";
     // initially false, set to true by parser
@@ -3050,7 +3895,7 @@ Document = function(implementation, docParentWindow) {
     this.ownerDocument = null;
     
     this.importing = false;
-    
+    this.location = null;
 };
 Document.prototype = new Node;
 __extend__(Document.prototype,{
@@ -3072,17 +3917,8 @@ __extend__(Document.prototype,{
         }
         return null;
     },
-    get parentWindow(){
-        return this._parentWindow;
-    },
     get documentURI(){
         return this.baseURI;
-    },
-    get location(){
-        return this._location?this._location:null;
-    },
-    set location(url){
-        this._location = url;
     },
     createExpression: function(xpath, nsuriMap){ 
         return new XPathExpression(xpath, nsuriMap);
@@ -3131,6 +3967,7 @@ __extend__(Document.prototype,{
     createElementNS : function(namespaceURI, qualifiedName) {
         //we use this as a parser flag to ignore the xhtml
         //namespace assumed by the parser
+        //console.log('creating element %s %s', namespaceURI, qualifiedName);
         if(this.baseURI === 'http://envjs.com/xml' && 
             namespaceURI === 'http://www.w3.org/1999/xhtml'){
             return this.createElement(qualifiedName);
@@ -3147,13 +3984,13 @@ __extend__(Document.prototype,{
                 throw(new DOMException(DOMException.INVALID_CHARACTER_ERR));
             }
         }
-        
         var node  = new Element(this);
         var qname = __parseQName__(qualifiedName);
         node.namespaceURI = namespaceURI;
         node.prefix       = qname.prefix;
         node.nodeName     = qualifiedName;
         
+        //console.log('created element %s %s', namespaceURI, qualifiedName);
         return node;
     },
     createAttribute : function(name) {
@@ -3193,7 +4030,7 @@ __extend__(Document.prototype,{
         node.prefix       = qname.prefix;
         node.nodeName     = qualifiedName;
         node.nodeValue    = "";
-        
+        //console.log('attribute %s %s %s', node.namespaceURI, node.prefix, node.nodeName);
         return node;
     },
     createNamespace : function(qualifiedName) {
@@ -3237,7 +4074,7 @@ __extend__(Document.prototype,{
         return retNode;
     },
     normalizeDocument: function(){
-	    this.documentElement.normalize();
+	    this.normalize();
     },
     get nodeType(){
         return Node.DOCUMENT_NODE;
@@ -3306,6 +4143,101 @@ var __isValidNamespace__ = function(doc, namespaceURI, qualifiedName, isAttribut
 };
 
 /**
+ * @author thatcher
+ */
+DOMParser = function(principle, documentURI, baseURI){};
+__extend__(DOMParser.prototype,{
+    parseFromString: function(xmlstring, mimetype){
+        var doc = new Document(new DOMImplementation()),
+            e4;
+        
+        XML.ignoreComments = false;
+        XML.ignoreProcessingInstructions = false;
+        XML.ignoreWhitespace = false;
+        
+        xmlstring = xmlstring.replace(/<\?xml.*\?>/);
+        
+        e4 = new XMLList(xmlstring);
+        
+        __toDomNode__(e4, doc, doc);
+        
+        //console.log('xml \n %s', doc.documentElement.xml);
+        return doc;
+        
+    }
+});
+
+var __toDomNode__ = function(e4, parent, doc){
+    var xnode, 
+        domnode,
+        children,
+        target,
+        value,
+        length,
+        element,
+        kind;
+    //console.log('converting e4x node list \n %s', e4)
+    for each(xnode in e4){
+        kind = xnode.nodeKind(); 
+        //console.log('treating node kind %s', kind);
+        switch(kind){
+            case 'element':
+                //console.log('creating element %s %s', xnode.localName(), xnode.namespace());
+                if(xnode.namespace() && (xnode.namespace()+'') !== ''){
+                    //console.log('createElementNS %s %s',xnode.namespace()+'', xnode.localName() );
+                    domnode = doc.createElementNS(xnode.namespace()+'', xnode.localName());
+                }else{
+                    domnode = doc.createElement(xnode.name()+'');
+                }
+                parent.appendChild(domnode);
+                 __toDomNode__(xnode.attributes(), domnode, doc);
+                length = xnode.children().length();
+                //console.log('recursing? %s', length?"yes":"no");
+                if(xnode.children().length()>0){
+                    __toDomNode__(xnode.children(), domnode, doc);
+                }
+                break;
+            case 'attribute':
+                //console.log('setting attribute %s %s %s', 
+                //    xnode.localName(), xnode.namespace(), xnode.text());
+                if(xnode.namespace() && xnode.namespace().prefix){
+                    //console.log("%s", xnode.namespace().prefix);
+                    parent.setAttributeNS(xnode.namespace()+'', 
+                        xnode.namespace().prefix+':'+xnode.localName(), 
+                        xnode.text());
+                }else if((xnode.name()+'').match("http://www.w3.org/2000/xmlns/::")){
+                    if(xnode.localName()!=='xmlns'){
+                        parent.setAttributeNS('http://www.w3.org/2000/xmlns/', 
+                            'xmlns:'+xnode.localName(), 
+                            xnode.text());
+                    }
+                }else{
+                    parent.setAttribute(xnode.localName()+'', xnode.text());
+                }
+                break;
+            case 'text':
+                //console.log('creating text node : %s', xnode);
+                domnode = doc.createTextNode(xnode+'');
+                parent.appendChild(domnode);
+                break;
+            case 'comment':
+                //console.log('creating comment node : %s', xnode);
+                value = xnode+'';
+                domnode = doc.createComment(value.substring(4,value.length-3));
+                parent.appendChild(domnode);
+                break;
+            case 'processing-instruction':
+                //console.log('creating processing-instruction node : %s', xnode);
+                value = xnode+'';
+                target = value.split(' ')[0].substring(2);
+                value = value.split(' ').splice(1).join(" ").replace('?>','');
+                //console.log('creating processing-instruction data : %s', value);
+                domnode = doc.createProcessingInstruction(target, value);
+                parent.appendChild(domnode);
+                break;
+        }
+    }
+}; /**
  * @author envjs team
  * @class XMLSerializer 
  */
@@ -3315,8 +4247,12 @@ XMLSerializer = function() {};
 __extend__(XMLSerializer.prototype, {
     serializeToString: function(node){
         return node.xml;
+    },
+    toString : function(){
+        return "[object XMLSerializer]";
     }
 });
+
 /**
  * @author john resig & the envjs team
  * @uri http://www.envjs.com/
@@ -3326,7 +4262,7 @@ __extend__(XMLSerializer.prototype, {
 
 })();
 /*
- * Envjs event.1.2.0.0 
+ * Envjs event.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -3341,9 +4277,12 @@ var Event,
     MutationEvent,
     DocumentEvent,
     EventTarget,
-    EventException;
+    EventException,
+    //nonstandard but very useful for implementing mutation events 
+    //among other things like general profiling
+    Aspect;
 /*
- * Envjs event.1.2.0.0 
+ * Envjs event.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -3379,6 +4318,247 @@ function __setArray__( target, array ) {
     target.length = 0;
     Array.prototype.push.apply( target, array );
 };/**
+ * Borrowed with love from:
+ * 
+ * jQuery AOP - jQuery plugin to add features of aspect-oriented programming (AOP) to jQuery.
+ * http://jquery-aop.googlecode.com/
+ *
+ * Licensed under the MIT license:
+ * http://www.opensource.org/licenses/mit-license.php
+ *
+ * Version: 1.1
+ */
+(function() {
+
+	var _after	= 1;
+	var _before	= 2;
+	var _around	= 3;
+	var _intro  = 4;
+	var _regexEnabled = true;
+
+	/**
+	 * Private weaving function.
+	 */
+	var weaveOne = function(source, method, advice) {
+
+		var old = source[method];
+
+		var aspect;
+		if (advice.type == _after)
+			aspect = function() {
+				var returnValue = old.apply(this, arguments);
+				return advice.value.apply(this, [returnValue, method]);
+			};
+		else if (advice.type == _before)
+			aspect = function() {
+				advice.value.apply(this, [arguments, method]);
+				return old.apply(this, arguments);
+			};
+		else if (advice.type == _intro)
+			aspect = function() {
+				return advice.value.apply(this, arguments);
+			};
+		else if (advice.type == _around) {
+			aspect = function() {
+				var invocation = { object: this, args: arguments };
+				return advice.value.apply(invocation.object, [{ arguments: invocation.args, method: method, proceed : 
+					function() {
+						return old.apply(invocation.object, invocation.args);
+					}
+				}] );
+			};
+		}
+
+		aspect.unweave = function() { 
+			source[method] = old;
+			pointcut = source = aspect = old = null;
+		};
+
+		source[method] = aspect;
+
+		return aspect;
+
+	};
+
+
+	/**
+	 * Private weaver and pointcut parser.
+	 */
+	var weave = function(pointcut, advice)
+	{
+
+		var source = (typeof(pointcut.target.prototype) != 'undefined') ? pointcut.target.prototype : pointcut.target;
+		var advices = [];
+
+		// If it's not an introduction and no method was found, try with regex...
+		if (advice.type != _intro && typeof(source[pointcut.method]) == 'undefined')
+		{
+
+			for (var method in source)
+			{
+				if (source[method] != null && source[method] instanceof Function && method.match(pointcut.method))
+				{
+					advices[advices.length] = weaveOne(source, method, advice);
+				}
+			}
+
+			if (advices.length == 0)
+				throw 'No method: ' + pointcut.method;
+
+		} 
+		else
+		{
+			// Return as an array of one element
+			advices[0] = weaveOne(source, pointcut.method, advice);
+		}
+
+		return _regexEnabled ? advices : advices[0];
+
+	};
+
+	Aspect = 
+	{
+		/**
+		 * Creates an advice after the defined point-cut. The advice will be executed after the point-cut method 
+		 * has completed execution successfully, and will receive one parameter with the result of the execution.
+		 * This function returns an array of weaved aspects (Function).
+		 *
+		 * @example jQuery.aop.after( {target: window, method: 'MyGlobalMethod'}, function(result) { alert('Returned: ' + result); } );
+		 * @result Array<Function>
+		 *
+		 * @example jQuery.aop.after( {target: String, method: 'indexOf'}, function(index) { alert('Result found at: ' + index + ' on:' + this); } );
+		 * @result Array<Function>
+		 *
+		 * @name after
+		 * @param Map pointcut Definition of the point-cut to apply the advice. A point-cut is the definition of the object/s and method/s to be weaved.
+		 * @option Object target Target object to be weaved. 
+		 * @option String method Name of the function to be weaved. Regex are supported, but not on built-in objects.
+		 * @param Function advice Function containing the code that will get called after the execution of the point-cut. It receives one parameter
+		 *                        with the result of the point-cut's execution.
+		 *
+		 * @type Array<Function>
+		 * @cat Plugins/General
+		 */
+		after : function(pointcut, advice)
+		{
+			return weave( pointcut, { type: _after, value: advice } );
+		},
+
+		/**
+		 * Creates an advice before the defined point-cut. The advice will be executed before the point-cut method 
+		 * but cannot modify the behavior of the method, or prevent its execution.
+		 * This function returns an array of weaved aspects (Function).
+		 *
+		 * @example jQuery.aop.before( {target: window, method: 'MyGlobalMethod'}, function() { alert('About to execute MyGlobalMethod'); } );
+		 * @result Array<Function>
+		 *
+		 * @example jQuery.aop.before( {target: String, method: 'indexOf'}, function(index) { alert('About to execute String.indexOf on: ' + this); } );
+		 * @result Array<Function>
+		 *
+		 * @name before
+		 * @param Map pointcut Definition of the point-cut to apply the advice. A point-cut is the definition of the object/s and method/s to be weaved.
+		 * @option Object target Target object to be weaved. 
+		 * @option String method Name of the function to be weaved. Regex are supported, but not on built-in objects.
+		 * @param Function advice Function containing the code that will get called before the execution of the point-cut.
+		 *
+		 * @type Array<Function>
+		 * @cat Plugins/General
+		 */
+		before : function(pointcut, advice)
+		{
+			return weave( pointcut, { type: _before, value: advice } );
+		},
+
+
+		/**
+		 * Creates an advice 'around' the defined point-cut. This type of advice can control the point-cut method execution by calling
+		 * the functions '.proceed()' on the 'invocation' object, and also, can modify the arguments collection before sending them to the function call.
+		 * This function returns an array of weaved aspects (Function).
+		 *
+		 * @example jQuery.aop.around( {target: window, method: 'MyGlobalMethod'}, function(invocation) {
+		 *                alert('# of Arguments: ' + invocation.arguments.length); 
+		 *                return invocation.proceed(); 
+		 *          } );
+		 * @result Array<Function>
+		 *
+		 * @example jQuery.aop.around( {target: String, method: 'indexOf'}, function(invocation) { 
+		 *                alert('Searching: ' + invocation.arguments[0] + ' on: ' + this); 
+		 *                return invocation.proceed(); 
+		 *          } );
+		 * @result Array<Function>
+		 *
+		 * @example jQuery.aop.around( {target: window, method: /Get(\d+)/}, function(invocation) {
+		 *                alert('Executing ' + invocation.method); 
+		 *                return invocation.proceed(); 
+		 *          } );
+		 * @desc Matches all global methods starting with 'Get' and followed by a number.
+		 * @result Array<Function>
+		 *
+		 *
+		 * @name around
+		 * @param Map pointcut Definition of the point-cut to apply the advice. A point-cut is the definition of the object/s and method/s to be weaved.
+		 * @option Object target Target object to be weaved. 
+		 * @option String method Name of the function to be weaved. Regex are supported, but not on built-in objects.
+		 * @param Function advice Function containing the code that will get called around the execution of the point-cut. This advice will be called with one
+		 *                        argument containing one function '.proceed()', the collection of arguments '.arguments', and the matched method name '.method'.
+		 *
+		 * @type Array<Function>
+		 * @cat Plugins/General
+		 */
+		around : function(pointcut, advice)
+		{
+			return weave( pointcut, { type: _around, value: advice } );
+		},
+
+		/**
+		 * Creates an introduction on the defined point-cut. This type of advice replaces any existing methods with the same
+		 * name. To restore them, just unweave it.
+		 * This function returns an array with only one weaved aspect (Function).
+		 *
+		 * @example jQuery.aop.introduction( {target: window, method: 'MyGlobalMethod'}, function(result) { alert('Returned: ' + result); } );
+		 * @result Array<Function>
+		 *
+		 * @example jQuery.aop.introduction( {target: String, method: 'log'}, function() { alert('Console: ' + this); } );
+		 * @result Array<Function>
+		 *
+		 * @name introduction
+		 * @param Map pointcut Definition of the point-cut to apply the advice. A point-cut is the definition of the object/s and method/s to be weaved.
+		 * @option Object target Target object to be weaved. 
+		 * @option String method Name of the function to be weaved.
+		 * @param Function advice Function containing the code that will be executed on the point-cut. 
+		 *
+		 * @type Array<Function>
+		 * @cat Plugins/General
+		 */
+		introduction : function(pointcut, advice)
+		{
+			return weave( pointcut, { type: _intro, value: advice } );
+		},
+		
+		/**
+		 * Configures global options.
+		 *
+		 * @name setup
+		 * @param Map settings Configuration options.
+		 * @option Boolean regexMatch Enables/disables regex matching of method names.
+		 *
+		 * @example jQuery.aop.setup( { regexMatch: false } );
+		 * @desc Disable regex matching.
+		 *
+		 * @type Void
+		 * @cat Plugins/General
+		 */
+		setup: function(settings)
+		{
+			_regexEnabled = settings.regexMatch;
+		}
+	};
+
+})();
+
+
+
+/**
  * 
  * // Introduced in DOM Level 2:
  * interface DocumentEvent {
@@ -3442,72 +4622,97 @@ var $events = [{}];
 function __addEventListener__(target, type, fn, phase){
     phase = !!phase?"CAPTURING":"BUBBLING";
     if ( !target.uuid ) {
-        target.uuid = $events.length;
+        //console.log('event uuid %s %s', target, target.uuid);
+        target.uuid = $events.length+'';
+    }
+    if ( !$events[target.uuid] ) {
+        //console.log('creating listener for target: %s %s', target, target.uuid);
         $events[target.uuid] = {};
     }
     if ( !$events[target.uuid][type] ){
+        //console.log('creating listener for type: %s %s %s', target, target.uuid, type);
         $events[target.uuid][type] = {
             CAPTURING:[],
             BUBBLING:[]
         };
     }
     if ( $events[target.uuid][type][phase].indexOf( fn ) < 0 ){
-        
+        //console.log('adding event listener %s %s %s %s %s %s', target, target.uuid, type, phase, 
+        //    $events[target.uuid][type][phase].length, $events[target.uuid][type][phase].indexOf( fn ));
+        //console.log('creating listener for function: %s %s %s', target, target.uuid, phase);
         $events[target.uuid][type][phase].push( fn );
+        //console.log('adding event listener %s %s %s %s %s %s', target, target.uuid, type, phase, 
+        //    $events[target.uuid][type][phase].length, $events[target.uuid][type][phase].indexOf( fn ));
     }
+    //console.log('registered event listeners %s', $events.length);
 };
 
 
-function __removeEventListener__(target, type, fn, _phase){
+function __removeEventListener__(target, type, fn, phase){
 
     phase = !!phase?"CAPTURING":"BUBBLING";
     if ( !target.uuid ) {
-        target.uuid = $events.length;
-        $events[target.uuid] = {};
+        return;
     }
-    if ( !$events[target.uuid][type] ){
-        $events[target.uuid][type] = {
-            CAPTURING:[],
-            BUBBLING:[]
-        };
-    }   
+    if ( !$events[target.uuid] ) {
+        return;
+    }
+    if(type == '*'){
+        //used to clean all event listeners for a given node
+        //console.log('cleaning all event listeners for node %s %s',target, target.uuid);
+        delete $events[target.uuid];
+        $events[target.uuid] = null;
+        return;
+    }else if ( !$events[target.uuid][type] ){
+        return;
+    }
     $events[target.uuid][type][phase] =
     $events[target.uuid][type][phase].filter(function(f){
-            return f != fn;
-        });
+        //console.log('removing event listener %s %s %s %s', target, type, phase, fn);
+        return f != fn;
+    });
 };
 
-
+var __eventuuid__ = 0;
 function __dispatchEvent__(target, event, bubbles){
 
+    if(!event.uuid)
+        event.uuid = __eventuuid__++;
     //the window scope defines the $event object, for IE(^^^) compatibility;
-    $event = event;
-
+    //$event = event;
+    //console.log('dispatching event %s', event.uuid);
     if (bubbles == undefined || bubbles == null)
         bubbles = true;
 
     if (!event.target) {
         event.target = target;
     }
+    
+    //console.log('dispatching? %s %s %s', target, event.type, bubbles);
+    if ( event.type && (target.nodeType || target === window )) {
 
-    if ( event.type && (target.nodeType             ||
-                        target === window           ||
-                        target.__proto__ === window ||
-                        target.$thisWindowsProxyObject === window)) {
-
+        //console.log('dispatching event %s %s %s', target, event.type, bubbles);
         __captureEvent__(target, event);
         
         event.eventPhase = Event.AT_TARGET;
-        if ( target.uuid && $events[target.uuid][event.type] ) {
+        if ( target.uuid && $events[target.uuid] && $events[target.uuid][event.type] ) {
             event.currentTarget = target;
+            //console.log('dispatching %s %s %s %s', target, event.type, 
+            //  $events[target.uuid][event.type]['CAPTURING'].length);
             $events[target.uuid][event.type]['CAPTURING'].forEach(function(fn){
+                //console.log('AT_TARGET (CAPTURING) event %s', fn);
                 var returnValue = fn( event );
+                //console.log('AT_TARGET (CAPTURING) return value %s', returnValue);
                 if(returnValue === false){
                     event.stopPropagation();
                 }
             });
+            //console.log('dispatching %s %s %s %s', target, event.type, 
+            //  $events[target.uuid][event.type]['BUBBLING'].length);
             $events[target.uuid][event.type]['BUBBLING'].forEach(function(fn){
+                //console.log('AT_TARGET (BUBBLING) event %s', fn);
                 var returnValue = fn( event );
+                //console.log('AT_TARGET (BUBBLING) return value %s', returnValue);
                 if(returnValue === false){
                     event.stopPropagation();
                 }
@@ -3519,6 +4724,10 @@ function __dispatchEvent__(target, event, bubbles){
         if (bubbles && !event.cancelled){
             __bubbleEvent__(target, event);
         }
+        
+        //console.log('deleting event %s', event.uuid);
+        event.target = null;
+        event = null;
     }else{
         throw new EventException(EventException.UNSPECIFIED_EVENT_TYPE_ERR);
     }
@@ -3530,19 +4739,21 @@ function __captureEvent__(target, event){
         
     event.eventPhase = Event.CAPTURING_PHASE;
     while(parent){
-        if(parent.uuid && $events[parent.uuid][event.type]['CAPTURING']){
+        if(parent.uuid && $events[parent.uuid] && $events[parent.uuid][event.type]){
             ancestorStack.push(parent);
         }
         parent = parent.parentNode;
     }
     while(ancestorStack.length && !event.cancelled){
         event.currentTarget = ancestorStack.pop();
-        $events[event.currentTarget.uuid][event.type]['CAPTURING'].forEach(function(fn){
-            var returnValue = fn( event );
-            if(returnValue === false){
-                event.stopPropagation();
-            }
-        });
+        if($events[event.currentTarget.uuid] && $events[event.currentTarget.uuid][event.type]){
+            $events[event.currentTarget.uuid][event.type]['CAPTURING'].forEach(function(fn){
+                var returnValue = fn( event );
+                if(returnValue === false){
+                    event.stopPropagation();
+                }
+            });
+        }
     }
 };
 
@@ -3550,7 +4761,7 @@ function __bubbleEvent__(target, event){
     var parent = target.parentNode;
     event.eventPhase = Event.BUBBLING_PHASE;
     while(parent){
-        if(parent.uuid && $events[parent.uuid][event.type]['BUBBLING']){
+        if(parent.uuid && $events[parent.uuid] && $events[parent.uuid][event.type] ){
             event.currentTarget = parent;
             $events[event.currentTarget.uuid][event.type]['BUBBLING'].forEach(function(fn){
                 var returnValue = fn( event );
@@ -3572,48 +4783,49 @@ Event = function(options){
     // be appropriate in the long run and we'll
     // have to decide if we simply dont adhere to
     // the read-only restriction of the specification
-    var state = __extend__({
-        bubbles : true,
-        cancelable : true,
-        cancelled: false,
-        currentTarget : null,
-        target : null,
-        eventPhase : Event.AT_TARGET,
-        timeStamp : new Date().getTime(),
-        preventDefault : false,
-        stopPropogation : false
-    }, options||{} );
-        
-    return {
-        get bubbles(){return state.bubbles;},
-        get cancelable(){return state.cancelable;},
-        get currentTarget(){return state.currentTarget;},
-        set currentTarget(currentTarget){ state.currentTarget = currentTarget; },
-        get eventPhase(){return state.eventPhase;},
-        set eventPhase(eventPhase){state.eventPhase = eventPhase;},
-        get target(){return state.target;},
-        set target(target){ state.target = target;},
-        get timeStamp(){return state.timeStamp;},
-        get type(){return state.type;},
-        initEvent: function(type, bubbles, cancelable){
-            state.type=type?type:'';
-            state.bubbles=!!bubbles;
-            state.cancelable=!!cancelable;
-        },
-        preventDefault: function(){
-            state.preventDefault = true;
-        },
-        stopPropagation: function(){
-            if(state.cancelable){
-                state.cancelled = true;
-                state.bubbles = false;
-            }
-        },
-        get cancelled(){
-            return state.cancelled;
-        }
-    };
+    this._bubbles = true;
+    this._cancelable = true;
+    this._cancelled = false;
+    this._currentTarget = null;
+    this._target = null;
+    this._eventPhase = Event.AT_TARGET;
+    this._timeStamp = new Date().getTime();
+    this._preventDefault = false;
+    this._stopPropogation = false;
 };
+
+__extend__(Event.prototype,{       
+    get bubbles(){return this._bubbles;},
+    get cancelable(){return this._cancelable;},
+    get currentTarget(){return this._currentTarget;},
+    set currentTarget(currentTarget){ this._currentTarget = currentTarget; },
+    get eventPhase(){return this._eventPhase;},
+    set eventPhase(eventPhase){this._eventPhase = eventPhase;},
+    get target(){return this._target;},
+    set target(target){ this._target = target;},
+    get timeStamp(){return this._timeStamp;},
+    get type(){return this._type;},
+    initEvent: function(type, bubbles, cancelable){
+        this._type=type?type:'';
+        this._bubbles=!!bubbles;
+        this._cancelable=!!cancelable;
+    },
+    preventDefault: function(){
+        this._preventDefault = true;
+    },
+    stopPropagation: function(){
+        if(this._cancelable){
+            this._cancelled = true;
+            this._bubbles = false;
+        }
+    },
+    get cancelled(){
+        return this._cancelled;
+    },
+    toString: function(){
+        return '[object Event]';
+    }
+});
 
 __extend__(Event,{
     CAPTURING_PHASE : 1,
@@ -3629,25 +4841,24 @@ __extend__(Event,{
  * @param {Object} options
  */
 UIEvent = function(options) {
-    var state = __extend__({
-        view : null,
-        detail : 0
-    }, options||{});
-    return __extend__(new Event(state),{
-        get view(){
-            return state.view;
-        },
-        get detail(){
-            return state.detail;
-        },
-        initUIEvent: function(type, bubbles, cancelable, windowObject, detail){
-            this.initEvent(type, bubbles, cancelable);
-            state.detail = 0;
-            state.view = windowObject;
-        }
-    });
+    this._view = null;
+    this._detail = 0;
 };
+
 UIEvent.prototype = new Event;
+__extend__(UIEvent.prototype,{
+    get view(){
+        return this._view;
+    },
+    get detail(){
+        return this._detail;
+    },
+    initUIEvent: function(type, bubbles, cancelable, windowObject, detail){
+        this.initEvent(type, bubbles, cancelable);
+        this._detail = 0;
+        this._view = windowObject;
+    }
+});
 
 var $onblur,
     $onfocus,
@@ -3660,114 +4871,110 @@ var $onblur,
  * @uri http://www.w3.org/TR/2000/REC-DOM-Level-2-Events-20001113/events.html
  */
 MouseEvent = function(options) {
-    var state = __extend__({
-        screenX: 0,
-        screenY: 0,
-        clientX: 0,
-        clientY: 0,
-        ctrlKey: false,
-        metaKey: false,
-        altKey:  false,
-        metaKey: false,
-        button: null,
-        relatedTarget: null
-    }, options||{});
-    return __extend__(new Event(state),{
-        get screenX(){
-            return state.screenX;
-        },
-        get screenY(){
-            return state.screenY;
-        },
-        get clientX(){
-            return state.clientX;
-        },
-        get clientY(){
-            return state.clientY;
-        },
-        get ctrlKey(){
-            return state.ctrlKey;
-        },
-        get altKey(){
-            return state.altKey;
-        },
-        get shiftKey(){
-            return state.shiftKey;
-        },
-        get metaKey(){
-            return state.metaKey;
-        },
-        get button(){
-            return state.button;
-        },
-        get relatedTarget(){
-            return state.relatedTarget;
-        },
-        initMouseEvent: function(type, bubbles, cancelable, windowObject, detail,
-                screenX, screenY, clientX, clientY, ctrlKey, altKey, shiftKey, 
-                metaKey, button, relatedTarget){
-            this.initUIEvent(type, bubbles, cancelable, windowObject, detail);
-            state.screenX = screenX;
-            state.screenY = screenY;
-            state.clientX = clientX;
-            state.clientY = clientY;
-            state.ctrlKey = ctrlKey;
-            state.altKey = altKey;
-            state.shiftKey = shiftKey;
-            state.metaKey = metaKey;
-            state.button = button;
-            state.relatedTarget = relatedTarget;
-        }
-    });
+    this._screenX= 0;
+    this._screenY= 0;
+    this._clientX= 0;
+    this._clientY= 0;
+    this._ctrlKey= false;
+    this._metaKey= false;
+    this._altKey= false;
+    this._button= null;
+    this._relatedTarget= null;
 };
 MouseEvent.prototype = new UIEvent;
+__extend__(MouseEvent.prototype,{
+    get screenX(){
+        return this._screenX;
+    },
+    get screenY(){
+        return this._screenY;
+    },
+    get clientX(){
+        return this._clientX;
+    },
+    get clientY(){
+        return this._clientY;
+    },
+    get ctrlKey(){
+        return this._ctrlKey;
+    },
+    get altKey(){
+        return this._altKey;
+    },
+    get shiftKey(){
+        return this._shiftKey;
+    },
+    get metaKey(){
+        return this._metaKey;
+    },
+    get button(){
+        return this._button;
+    },
+    get relatedTarget(){
+        return this._relatedTarget;
+    },
+    initMouseEvent: function(type, bubbles, cancelable, windowObject, detail,
+            screenX, screenY, clientX, clientY, ctrlKey, altKey, shiftKey, 
+            metaKey, button, relatedTarget){
+        this.initUIEvent(type, bubbles, cancelable, windowObject, detail);
+        this._screenX = screenX;
+        this._screenY = screenY;
+        this._clientX = clientX;
+        this._clientY = clientY;
+        this._ctrlKey = ctrlKey;
+        this._altKey = altKey;
+        this._shiftKey = shiftKey;
+        this._metaKey = metaKey;
+        this._button = button;
+        this._relatedTarget = relatedTarget;
+    }
+});
 
 /**
  * Interface KeyboardEvent (introduced in DOM Level 3)
  */
 KeyboardEvent = function(options) {
-    var state = __extend__({
-        keyIdentifier: 0,
-        keyLocation: 0,
-        ctrlKey: false,
-        metaKey: false,
-        altKey:  false,
-        metaKey: false,
-    }, options||{});
-    return __extend__(new Event(state),{
-        
-        get ctrlKey(){
-            return state.ctrlKey;
-        },
-        get altKey(){
-            return state.altKey;
-        },
-        get shiftKey(){
-            return state.shiftKey;
-        },
-        get metaKey(){
-            return state.metaKey;
-        },
-        get button(){
-            return state.button;
-        },
-        get relatedTarget(){
-            return state.relatedTarget;
-        },
-        getModifiersState: function(keyIdentifier){
-
-        },
-        initMouseEvent: function(type, bubbles, cancelable, windowObject, 
-                keyIdentifier, keyLocation, modifiersList, repeat){
-            this.initUIEvent(type, bubbles, cancelable, windowObject, 0);
-            state.keyIdentifier = keyIdentifier;
-            state.keyLocation = keyLocation;
-            state.modifiersList = modifiersList;
-            state.repeat = repeat;
-        }
-    });
+    this._keyIdentifier = 0;
+    this._keyLocation = 0;
+    this._ctrlKey = false;
+    this._metaKey = false;
+    this._altKey = false;
+    this._metaKey = false;
 };
 KeyboardEvent.prototype = new UIEvent;
+
+__extend__(KeyboardEvent.prototype,{
+        
+    get ctrlKey(){
+        return this._ctrlKey;
+    },
+    get altKey(){
+        return this._altKey;
+    },
+    get shiftKey(){
+        return this._shiftKey;
+    },
+    get metaKey(){
+        return this._metaKey;
+    },
+    get button(){
+        return this._button;
+    },
+    get relatedTarget(){
+        return this._relatedTarget;
+    },
+    getModifiersState: function(keyIdentifier){
+
+    },
+    initMouseEvent: function(type, bubbles, cancelable, windowObject, 
+            keyIdentifier, keyLocation, modifiersList, repeat){
+        this.initUIEvent(type, bubbles, cancelable, windowObject, 0);
+        this._keyIdentifier = keyIdentifier;
+        this._keyLocation = keyLocation;
+        this._modifiersList = modifiersList;
+        this._repeat = repeat;
+    }
+});
 
 KeyboardEvent.DOM_KEY_LOCATION_STANDARD      = 0;
 KeyboardEvent.DOM_KEY_LOCATION_LEFT          = 1;
@@ -3778,72 +4985,109 @@ KeyboardEvent.DOM_KEY_LOCATION_JOYSTICK      = 5;
 
 
 
+//We dont fire mutation events until someone has registered for them
+var __supportedMutations__ = /DOMSubtreeModified|DOMNodeInserted|DOMNodeRemoved|DOMAttrModified|DOMCharacterDataModified/;
+
+var __fireMutationEvents__ = Aspect.before({
+    target: EventTarget, 
+    method: 'addEventListener'
+}, function(target, type){
+    if(type && type.match(__supportedMutations__)){
+        //unweaving removes the __addEventListener__ aspect
+        __fireMutationEvents__.unweave();
+        // These two methods are enough to cover all dom 2 manipulations
+        Aspect.around({ 
+            target: Node,  
+            method:"removeChild"
+        }, function(invocation){
+            var event,
+                node = invocation.arguments[0];
+            event = node.ownerDocument.createEvent('MutationEvents');
+            event.initEvent('DOMNodeRemoved', true, false, node.parentNode, null, null, null, null);
+            node.dispatchEvent(event, false);
+            return invocation.proceed();
+            
+        }); 
+        Aspect.around({ 
+            target: Node,  
+            method:"appendChild"
+        }, function(invocation) {
+            var event,
+                node = invocation.proceed();
+            event = node.ownerDocument.createEvent('MutationEvents');
+            event.initEvent('DOMNodeInserted', true, false, node.parentNode, null, null, null, null);
+            node.dispatchEvent(event, false); 
+            return node;
+        });
+    }
+});
+
 /**
  * @name MutationEvent
  * @param {Object} options
  */
 MutationEvent = function(options) {
-    var state = __extend__({
-        cancelable : false,
-        timeStamp : 0,
-    }, options||{});
-    return __extend__(new Event(state),{
-        get relatedNode(){
-            return state.relatedNode;
-        },
-        get prevValue(){
-            return state.prevValue;
-        },
-        get newValue(){
-            return state.newValue;
-        },
-        get attrName(){
-            return state.attrName;
-        },
-        get attrChange(){
-            return state.attrChange;
-        },
-        initMutationEvent: function( type, bubbles, cancelable, 
-                relatedNode, prevValue, newValue, attrName, attrChange ){
-            state.relatedNode = relatedNode;
-            state.prevValue = prevValue;
-            state.newValue = newValue;
-            state.attrName = attrName;
-            state.attrChange = attrChange;
-            switch(type){
-                case "DOMSubtreeModified":
-                    this.initEvent(type, true, false);
-                    break;
-                case "DOMNodeInserted":
-                    this.initEvent(type, true, false);
-                    break;
-                case "DOMNodeRemoved":
-                    this.initEvent(type, true, false);
-                    break;
-                case "DOMNodeRemovedFromDocument":
-                    this.initEvent(type, false, false);
-                    break;
-                case "DOMNodeInsertedIntoDocument":
-                    this.initEvent(type, false, false);
-                    break;
-                case "DOMAttrModified":
-                    this.initEvent(type, true, false);
-                    break;
-                case "DOMCharacterDataModified":
-                    this.initEvent(type, true, false);
-                    break;
-                default:
-                    this.initEvent(type, bubbles, cancelable);
-            }
-        }
-    });
+    this._cancelable = false;
+    this._timeStamp = 0;
 };
+
 MutationEvent.prototype = new Event;
+__extend__(MutationEvent.prototype,{
+    get relatedNode(){
+        return this._relatedNode;
+    },
+    get prevValue(){
+        return this._prevValue;
+    },
+    get newValue(){
+        return this._newValue;
+    },
+    get attrName(){
+        return this._attrName;
+    },
+    get attrChange(){
+        return this._attrChange;
+    },
+    initMutationEvent: function( type, bubbles, cancelable, 
+            relatedNode, prevValue, newValue, attrName, attrChange ){
+        this._relatedNode = relatedNode;
+        this._prevValue = prevValue;
+        this._newValue = newValue;
+        this._attrName = attrName;
+        this._attrChange = attrChange;
+        switch(type){
+            case "DOMSubtreeModified":
+                this.initEvent(type, true, false);
+                break;
+            case "DOMNodeInserted":
+                this.initEvent(type, true, false);
+                break;
+            case "DOMNodeRemoved":
+                this.initEvent(type, true, false);
+                break;
+            case "DOMNodeRemovedFromDocument":
+                this.initEvent(type, false, false);
+                break;
+            case "DOMNodeInsertedIntoDocument":
+                this.initEvent(type, false, false);
+                break;
+            case "DOMAttrModified":
+                this.initEvent(type, true, false);
+                break;
+            case "DOMCharacterDataModified":
+                this.initEvent(type, true, false);
+                break;
+            default:
+                this.initEvent(type, bubbles, cancelable);
+        }
+    }
+});
 
 // constants
 MutationEvent.ADDITION = 0;
 MutationEvent.MODIFICATION = 1;
 MutationEvent.REMOVAL = 2;
+
 
 /**
  * @name EventException
@@ -3863,7 +5107,7 @@ EventException.UNSPECIFIED_EVENT_TYPE_ERR = 0;
 })();
 
 /*
- * Envjs timer.1.2.0.0 
+ * Envjs timer.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -3879,7 +5123,7 @@ var setTimeout,
     clearInterval;
     
 /*
- * Envjs timer.1.2.0.0 
+ * Envjs timer.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -3899,9 +5143,9 @@ var setTimeout,
 var $timers = [],
     EVENT_LOOP_RUNNING = false;
     
-$timers.lock = Envjs.sync(function(fn){
-    fn();
-});
+$timers.lock = function(fn){
+    Envjs.sync(fn)();
+};
 
 //private internal class
 var Timer = function(fn, interval){
@@ -3963,7 +5207,7 @@ setTimeout = function(fn, time){
                 }
             };
         }
-        //Envjs.debug("Creating timer number %s", num);
+        //console.log("Creating timer number %s", num);
         $timers[num] = new Timer(tfn, time);
         $timers[num].start();
     });
@@ -3976,6 +5220,7 @@ setTimeout = function(fn, time){
  * @param {Object} time
  */
 setInterval = function(fn, time){
+    //console.log('setting interval %s %s', time, fn.toString().substring(0,64));
     time = Timer.normalize(time);
     if ( time < 10 ) {
         time = 10;
@@ -4001,7 +5246,7 @@ setInterval = function(fn, time){
  * @param {Object} num
  */
 clearInterval = clearTimeout = function(num){
-    //$log("clearing interval "+num);
+    //console.log("clearing interval "+num);
     $timers.lock(function(){
         if ( $timers[num] ) {
             $timers[num].stop();
@@ -4045,6 +5290,7 @@ Envjs.wait = function(wait) {
         nextfn;
         
     for (;;) {
+        //console.log('timer loop');
         earliest = sleep = goal = now = nextfn = null;
         $timers.lock(function(){
             for(index in $timers){
@@ -4064,6 +5310,7 @@ Envjs.wait = function(wait) {
         if ( earliest && sleep <= 0 ) {
             nextfn = earliest.fn;
             try {
+                //console.log('running stack %s', nextfn.toString().substring(0,64));
                 earliest.running = true;
                 nextfn();
             } catch (e) {
@@ -4109,6 +5356,7 @@ Envjs.wait = function(wait) {
         if ( !sleep || sleep > interval ) {
             sleep = interval;
         }
+        //console.log('sleeping %s', sleep);
         Envjs.sleep(sleep);
         
     }
@@ -4125,7 +5373,7 @@ Envjs.wait = function(wait) {
 
 })();
 /*
- * Envjs html.1.2.0.0 
+ * Envjs html.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -4175,7 +5423,7 @@ var HTMLDocument,
     HTMLUnknownElement;
     
 /*
- * Envjs html.1.2.0.0 
+ * Envjs html.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -4229,15 +5477,16 @@ function __setArray__( target, array ) {
  *
  * @extends Document
  */
-HTMLDocument = function(implementation, docParentWindow, docReferrer) {
-  this.Document = Document;
-  this.Document(implementation, docParentWindow);
-  this._referrer = docReferrer;
-  this.async = false;
-  this.baseURI = "about:blank";
+HTMLDocument = function(implementation, ownerWindow, referrer) {
+    Document.apply(this, arguments);
+    this.referrer = referrer;
+    this.baseURI = "about:blank";
+    this.ownerWindow = ownerWindow;
+    this.head;
+    this.body;
 };
-
 HTMLDocument.prototype = new Document;
+
 __extend__(HTMLDocument.prototype, {
     createElement: function(tagName){
         tagName = tagName.toUpperCase();
@@ -4365,17 +5614,9 @@ __extend__(HTMLDocument.prototype, {
         if(!uri){
             return this.createElement(local);
         }else if ("http://www.w3.org/1999/xhtml" == uri) {
-             return this.createElement(local);
+            return this.createElement(local);
         } else if ("http://www.w3.org/1998/Math/MathML" == uri) {
-          if (!this.mathplayerinitialized) {
-              var obj = this.createElement("object");
-              obj.setAttribute("id", "mathplayer");
-              obj.setAttribute("classid", "clsid:32F66A20-7614-11D4-BD11-00104BD3F987");
-              this.getElementsByTagName("head")[0].appendChild(obj);
-              this.namespaces.add("m", "http://www.w3.org/1998/Math/MathML", "#mathplayer");  
-              this.mathplayerinitialized = true;
-          }
-          return this.createElement("m:" + local);
+            return this.createElement(local);
         } else {
             return Document.prototype.createElementNS.apply(this,[uri, local]);
         }
@@ -4388,39 +5629,74 @@ __extend__(HTMLDocument.prototype, {
         return new HTMLCollection(this.getElementsByTagName('applet'));
         
     },
-    get body(){ 
-        var nodelist = this.getElementsByTagName('body');
-        return nodelist.item(0);
-        
+    //document.head is non-standard
+    get head(){
+        //console.log('get head');
+        if(!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var element = this.documentElement,
+            length = element.childNodes.length,
+            i;
+        //check for the presence of the head element in this html doc
+        for(i=0;i<length;i++){
+            if(element.childNodes[i].nodeType === Node.ELEMENT_NODE){
+                if(element.childNodes[i].tagName.toLowerCase() === 'head'){
+                    return element.childNodes[i];
+                }
+            }
+        }
+        //no head?  ugh bad news html.. I guess we'll force the issue?
+        var head = element.appendChild(this.createElement('head'));
+        return head;
     },
-    set body(html){
-        return this.replaceNode(this.body,html);
-        
-    },
-
     get title(){
-        var titleArray = this.getElementsByTagName('title');
-        if (titleArray.length < 1)
-            return "";
-        return titleArray[0].textContent;
+        //console.log('get title');
+        if(!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var title,
+            head = this.head,
+            length = head.childNodes.length,
+            i;
+        //check for the presence of the title element in this head element
+        for(i=0;i<length;i++){
+            if(head.childNodes[i].nodeType === Node.ELEMENT_NODE){
+                if(head.childNodes[i].tagName.toLowerCase() === 'title'){
+                    return head.childNodes[i].textContent;
+                }
+            }
+        }
+        //no title?  ugh bad news html.. I guess we'll force the issue?
+        title = head.appendChild(this.createElement('title'));
+        return title.appendChild(this.createTextNode('Untitled Document')).nodeValue;
     },
     set title(titleStr){
-        var titleArray = this.getElementsByTagName('title'),
-            titleElem,
-            headArray;
-        if (titleArray.length < 1){
-            // need to make a new element and add it to "head"
-            titleElem = new HTMLTitleElement(this);
-            titleElem.text = titleStr;
-            headArray = this.getElementsByTagName('head');
-    	    if (headArray.length < 1)
-                return;  // ill-formed, just give up.....
-            headArray[0].appendChild(titleElem);
-        } else {
-            titleArray[0].textContent = titleStr;
-        }
+        //console.log('set title %s', titleStr);
+        if(!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var title = this.title;
+        title.textContent = titleStr;
     },
 
+    get body(){ 
+        //console.log('get body');
+        if(!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var body,
+            element = this.documentElement,
+            length = element.childNodes.length,
+            i;
+        //check for the presence of the head element in this html doc
+        for(i=0;i<length;i++){
+            if(element.childNodes[i].nodeType === Node.ELEMENT_NODE){
+                if(element.childNodes[i].tagName.toLowerCase() === 'body'){
+                    return element.childNodes[i];
+                }
+            }
+        }
+        //no head?  ugh bad news html.. I guess we'll force the issue?
+        return element.appendChild(this.createElement('body'));
+    },
+    set body(){console.log('set body');/**in firefox this is a benevolent do nothing*/},
     get cookie(){
         return Cookies.get(this);
     },
@@ -4464,9 +5740,6 @@ __extend__(HTMLDocument.prototype, {
     get links(){
         return new HTMLCollection(this.getElementsByTagName('a'));
     },
-    get referrer(){
-        return this._referrer;
-    },
 	getElementsByName : function(name){
         //returns a real Array + the NodeList
         var retNodes = __extend__([],new NodeList(this, this.documentElement)),
@@ -4475,7 +5748,8 @@ __extend__(HTMLDocument.prototype, {
         var all = this.all;
         for (var i=0; i < all.length; i++) {
             node = all[i];
-            if (node.nodeType == Node.ELEMENT_NODE && node.getAttribute('name') == name) {
+            if (node.nodeType == Node.ELEMENT_NODE && 
+                node.getAttribute('name') == name) {
                 retNodes.push(node);
             }
         }
@@ -4493,6 +5767,190 @@ __extend__(HTMLDocument.prototype, {
     set URL(url){
         this.location = url;  
     }
+});
+
+
+Aspect.around({ 
+    target: Node,  
+    method:"appendChild"
+}, function(invocation) {
+    var event,
+        okay,
+        node = invocation.proceed(),
+        doc = node.ownerDocument;
+    if((node.nodeType !== Node.ELEMENT_NODE)){
+        //for now we are only handling element insertions.  probably we will need
+        //to handle text node changes to script tags and changes to src 
+        //attributes
+        return node;
+    }
+    //console.log('appended html element %s %s %s', node.namespaceURI, node.nodeName, node);
+    switch(doc.parsing){
+        case true:
+            //handled by parser if included
+            break;
+        case false:
+            switch(node.namespaceURI){
+                case null:
+                    //fall through
+                case "":
+                    //fall through
+                case "http://www.w3.org/1999/xhtml":
+                    switch(node.tagName.toLowerCase()){
+                        case 'script':
+                            if((this.nodeName.toLowerCase() == 'head')){
+                                try{
+                                    okay = Envjs.loadLocalScript(node, null);
+                                    //console.log('loaded script? %s %s', node.uuid, okay);
+                                    // only fire event if we actually had something to load
+                                    if (node.src && node.src.length > 0){
+                                        event = doc.createEvent('HTMLEvents');
+                                        event.initEvent( okay ? "load" : "error", false, false );
+                                        node.dispatchEvent( event, false );
+                                    }
+                                }catch(e){
+                                    console.log('error loading html element %s %e', node, e.toString());
+                                }
+                            }
+                            break;
+                        case 'frame':
+                        case 'iframe':
+                            node.contentWindow = { };
+                            node.contentDocument = new HTMLDocument(new DOMImplementation(), node.contentWindow);
+                            node.contentWindow.document = node.contentDocument;
+                            try{
+                                Window;
+                            }catch(e){
+                                node.contentDocument.addEventListener('DOMContentLoaded', function(){
+                                    event = node.contentDocument.createEvent('HTMLEvents');
+                                    event.initEvent("load", false, false);
+                                    node.dispatchEvent( event, false );
+                                });
+                            }
+                            try{
+                                if (node.src && node.src.length > 0){
+                                    //console.log("getting content document for (i)frame from %s", node.src);
+                                    Envjs.loadFrame(node, Envjs.uri(node.src));
+                                    event = node.contentDocument.createEvent('HTMLEvents');
+                                    event.initEvent("load", false, false);
+                                    node.dispatchEvent( event, false );
+                                }else{
+                                    //I dont like this being here:
+                                    //TODO: better  mix-in strategy so the try/catch isnt required
+                                    try{
+                                        if(Window){
+                                            Envjs.loadFrame(node);
+                                            //console.log('src/html/document.js: triggering frame load');
+                                            event = node.contentDocument.createEvent('HTMLEvents');
+                                            event.initEvent("load", false, false);
+                                            node.dispatchEvent( event, false );
+                                        }
+                                    }catch(e){}
+                                }
+                            }catch(e){
+                                console.log('error loading html element %s %e', node, e.toString());
+                            }
+                            break;
+                        case 'link':
+                            if (node.href && node.href.length > 0){
+                                // don't actually load anything, so we're "done" immediately:
+                                event = doc.createEvent('HTMLEvents');
+                                event.initEvent("load", false, false);
+                                node.dispatchEvent( event, false );
+                            }
+                            break;
+                        case 'img':
+                            if (node.src && node.src.length > 0){
+                                // don't actually load anything, so we're "done" immediately:
+                                event = doc.createEvent('HTMLEvents');
+                                event.initEvent("load", false, false);
+                                node.dispatchEvent( event, false );
+                            }
+                            break;
+                        default:
+                            if(node.getAttribute('onload')){
+                                console.log('calling attribute onload %s | %s', node.onload, node.tagName);
+                                node.onload();
+                            }
+                            break;
+                    }//switch on name
+                default:
+                    break;
+            }//switch on ns
+            break;
+        default: 
+            console.log('element appended: %s %s', node+'', node.namespaceURI);
+    }//switch on doc.parsing
+    return node;
+
+});
+
+Aspect.around({ 
+    target: Node,  
+    method:"removeChild"
+}, function(invocation) {
+    var event,
+        okay,
+        node = invocation.proceed(),
+        doc = node.ownerDocument;
+    if((node.nodeType !== Node.ELEMENT_NODE)){
+        //for now we are only handling element insertions.  probably we will need
+        //to handle text node changes to script tags and changes to src 
+        //attributes
+        if(node.nodeType !== Node.DOCUMENT_NODE && node.uuid){
+            //console.log('removing event listeners, %s', node, node.uuid);
+            node.removeEventListener('*', null, null);
+        }
+        return node;
+    }
+    //console.log('appended html element %s %s %s', node.namespaceURI, node.nodeName, node);
+    
+    switch(doc.parsing){
+        case true:
+            //handled by parser if included
+            break;
+        case false:
+            switch(node.namespaceURI){
+                case null:
+                    //fall through
+                case "":
+                    //fall through
+                case "http://www.w3.org/1999/xhtml":
+                    //this is interesting dillema since our event engine is
+                    //storing the registered events in an array accessed
+                    //by the uuid property of the node.  unforunately this
+                    //means listeners hang out way after(forever ;)) the node
+                    //has been removed and gone out of scope.
+                    //console.log('removing event listeners, %s', node, node.uuid);
+                    node.removeEventListener('*', null, null);
+                    switch(node.tagName.toLowerCase()){
+                        case 'frame':
+                        case 'iframe':
+                            try{
+                                //console.log('removing iframe document');
+                                try{
+                                    Envjs.unloadFrame(node);
+                                }catch(e){
+                                    console.log('error freeing resources from frame %s', e);
+                                }
+                                node.contentWindow = null;
+                                node.contentDocument = null;
+                            }catch(e){
+                                console.log('error unloading html element %s %e', node, e.toString());
+                            }
+                            break;
+                        default:
+                            break;
+                    }//switch on name
+                default:
+                    break;
+            }//switch on ns
+            break;
+        default: 
+            console.log('element appended: %s %s', node+'', node.namespaceURI);
+    }//switch on doc.parsing
+    return node;
+
 });
 
 
@@ -4809,8 +6267,7 @@ var  __mouseout__ = function(element){
 * HTMLElement - DOM Level 2
 */
 HTMLElement = function(ownerDocument) {
-    this.Element = Element;
-    this.Element(ownerDocument);
+    Element.apply(this, arguments);
 };
 HTMLElement.prototype = new Element;
 //TODO: Not sure where HTMLEvents belongs in the chain
@@ -4844,7 +6301,7 @@ __extend__(HTMLElement.prototype, {
         // values of each child
         for (i=0; i < this.childNodes.length; i++) {
             if(this.childNodes[i]){
-                if(this.childNodes[i].xhtml){
+                if(this.childNodes[i].nodeType === Node.ELEMENT_NODE){
                     ret += this.childNodes[i].xhtml;
                 }else if(this.childNodes[i].nodeType == Node.TEXT_NODE && i>0 && 
                     this.childNodes[i-1].nodeType == Node.TEXT_NODE){
@@ -4864,10 +6321,10 @@ __extend__(HTMLElement.prototype, {
 	    return this.setAttribute("lang",val); 
     },
 	get offsetHeight(){
-	    return Number(this.style["height"].replace("px",""));
+	    return Number((this.style["height"]||'').replace("px",""));
 	},
 	get offsetWidth(){
-	    return Number(this.style["width"].replace("px",""));
+	    return Number((this.style["width"]||'').replace("px",""));
 	},
 	offsetLeft: 0,
 	offsetRight: 0,
@@ -4886,9 +6343,6 @@ __extend__(HTMLElement.prototype, {
 	get style(){
         return this.getAttribute('style')||'';
 	},
-    set style(values){
-	    this.setAttribute('style') = values;
-    },
 	get title() { 
 	    return this.getAttribute("title"); 
     },
@@ -4929,12 +6383,12 @@ __extend__(HTMLElement.prototype, {
         
         var ret = "",
             ns = "",
+            name = (this.tagName+"").toLowerCase(),
             attrs,
             attrstring = "",
             i;
-        
+
         // serialize namespace declarations
-        var ns = "";
         if (this.namespaceURI){
             if((this === this.ownerDocument.documentElement) ||
                 (!this.parentNode)||
@@ -4952,15 +6406,20 @@ __extend__(HTMLElement.prototype, {
         
         if(this.hasChildNodes()){
             // serialize this Element
-            ret += "<" + this.tagName.toLowerCase() + ns + attrstring +">";
+            ret += "<" + name + ns + attrstring +">";
             for(i=0;i< this.childNodes.length;i++){
                 ret += this.childNodes[i].xhtml ?
                            this.childNodes[i].xhtml : 
                            this.childNodes[i].xml
             }
-            ret += "</" + this.tagName.toLowerCase() + ">";
+            ret += "</" + name + ">";
         }else{
-            ret += "<" + this.tagName.toLowerCase() +ns+"/>";
+            switch(name){
+                case 'script':
+                    ret += "<" + name + ns + attrstring +"></"+name+">";
+                default:
+                    ret += "<" + name + ns + attrstring +"/>";
+            }
         }
         
         return ret;
@@ -5152,8 +6611,8 @@ var inputElements_focusEvents = {
         __blur__(this);
 
         if (this._oldValue != this.value){
-            var event = document.createEvent();
-            event.initEvent("change");
+            var event = document.createEvent("HTMLEvents");
+            event.initEvent("change", true, true);
             this.dispatchEvent( event );
         }
     },
@@ -5168,8 +6627,7 @@ var inputElements_focusEvents = {
 * HTMLInputCommon - convenience class, not DOM
 */
 var HTMLInputCommon = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLInputCommon.prototype = new HTMLElement;
 __extend__(HTMLInputCommon.prototype, {
@@ -5207,8 +6665,8 @@ __extend__(HTMLInputCommon.prototype, {
 * HTMLTypeValueInputs - convenience class, not DOM
 */
 var HTMLTypeValueInputs = function(ownerDocument) {
-    this.HTMLInputCommon = HTMLInputCommon;
-    this.HTMLInputCommon(ownerDocument);
+    
+    HTMLInputCommon.apply(this, arguments);
 
     this._oldValue = "";
 };
@@ -5242,10 +6700,18 @@ __extend__(HTMLTypeValueInputs.prototype, {
         this.setAttribute('value',newValue);
     },
     setAttribute: function(name, value){
+        //console.log('setting defaultValue (NS)');
         if(name == 'value' && !this.defaultValue){
             this.defaultValue = value;
         }
         HTMLElement.prototype.setAttribute.apply(this, [name, value]);
+    },
+    setAttributeNS: function(uri, name, value){
+        //console.log('setting defaultValue (NS)');
+        if(name == 'value' && !this.defaultValue){
+            this.defaultValue = value;
+        }
+        HTMLElement.prototype.setAttributeNS.apply(this, [uri, name, value]);
     }
 });
 
@@ -5254,8 +6720,7 @@ __extend__(HTMLTypeValueInputs.prototype, {
 * HTMLInputAreaCommon - convenience class, not DOM
 */
 var HTMLInputAreaCommon = function(ownerDocument) {
-    this.HTMLTypeValueInputs = HTMLTypeValueInputs;
-    this.HTMLTypeValueInputs(ownerDocument);
+    HTMLTypeValueInputs.apply(this, arguments);
 };
 HTMLInputAreaCommon.prototype = new HTMLTypeValueInputs;
 __extend__(HTMLInputAreaCommon.prototype, inputElements_focusEvents);
@@ -5278,8 +6743,7 @@ __extend__(HTMLInputAreaCommon.prototype, {
  * HTMLAnchorElement - DOM Level 2
  */
 HTMLAnchorElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLAnchorElement.prototype = new HTMLElement;
 __extend__(HTMLAnchorElement.prototype, {
@@ -5366,8 +6830,7 @@ __extend__(HTMLAnchorElement.prototype, {
  * HTMLAreaElement - DOM Level 2
  */
 HTMLAreaElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLAreaElement.prototype = new HTMLElement;
 __extend__(HTMLAreaElement.prototype, {
@@ -5413,6 +6876,9 @@ __extend__(HTMLAreaElement.prototype, {
     },
     set target(value){
         this.setAttribute('target',value);
+    },
+    toString: function(){
+        return '[object HTMLAreaElement]';
     }
 });
 
@@ -5421,8 +6887,7 @@ __extend__(HTMLAreaElement.prototype, {
 * HTMLBaseElement - DOM Level 2
 */
 HTMLBaseElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLBaseElement.prototype = new HTMLElement;
 __extend__(HTMLBaseElement.prototype, {
@@ -5445,10 +6910,9 @@ __extend__(HTMLBaseElement.prototype, {
 * HTMLQuoteElement - DOM Level 2
 */
 HTMLQuoteElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
-HTMLQuoteElement.prototype = new HTMLElement;
+__extend__(HTMLQuoteElement.prototype, HTMLElement.prototype);
 __extend__(HTMLQuoteElement.prototype, {
     get cite(){
         return this.getAttribute('cite');
@@ -5462,8 +6926,7 @@ __extend__(HTMLQuoteElement.prototype, {
  * HTMLBodyElement - DOM Level 2
  */
 HTMLBodyElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLBodyElement.prototype = new HTMLElement;
 __extend__(HTMLBodyElement.prototype, {
@@ -5480,8 +6943,7 @@ __extend__(HTMLBodyElement.prototype, {
  * HTMLButtonElement - DOM Level 2
  */
 HTMLButtonElement = function(ownerDocument) {
-    this.HTMLTypeValueInputs = HTMLTypeValueInputs;
-    this.HTMLTypeValueInputs(ownerDocument);
+    HTMLTypeValueInputs.apply(this, arguments);
 };
 HTMLButtonElement.prototype = new HTMLTypeValueInputs;
 __extend__(HTMLButtonElement.prototype, inputElements_status);
@@ -5499,8 +6961,7 @@ __extend__(HTMLButtonElement.prototype, {
 * HTMLCanvasElement - DOM Level 2
 */
 HTMLCanvasElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLCanvasElement.prototype = new HTMLElement;
 __extend__(HTMLCanvasElement.prototype, {
@@ -5514,8 +6975,7 @@ __extend__(HTMLCanvasElement.prototype, {
 * HTMLTableColElement - DOM Level 2
 */
 HTMLTableColElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLTableColElement.prototype = new HTMLElement;
 __extend__(HTMLTableColElement.prototype, {
@@ -5562,8 +7022,7 @@ __extend__(HTMLTableColElement.prototype, {
 * HTMLModElement - DOM Level 2
 */
 HTMLModElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLModElement.prototype = new HTMLElement;
 __extend__(HTMLModElement.prototype, {
@@ -5585,8 +7044,7 @@ __extend__(HTMLModElement.prototype, {
 * HTMLDivElement - DOM Level 2
 */
 HTMLDivElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLDivElement.prototype = new HTMLElement;
 __extend__(HTMLDivElement.prototype, {
@@ -5603,8 +7061,7 @@ __extend__(HTMLDivElement.prototype, {
  * HTMLLegendElement - DOM Level 2
  */
 HTMLLegendElement = function(ownerDocument) {
-    this.HTMLInputCommon = HTMLInputCommon;
-    this.HTMLInputCommon(ownerDocument);
+    HTMLInputCommon.apply(this, arguments);
 };
 HTMLLegendElement.prototype = new HTMLInputCommon;
 __extend__(HTMLLegendElement.prototype, {
@@ -5621,8 +7078,7 @@ __extend__(HTMLLegendElement.prototype, {
  * HTMLFieldSetElement - DOM Level 2
  */
 HTMLFieldSetElement = function(ownerDocument) {
-    this.HTMLLegendElement = HTMLLegendElement;
-    this.HTMLLegendElement(ownerDocument);
+    HTMLLegendElement.apply(this, arguments);
 };
 HTMLFieldSetElement.prototype = new HTMLLegendElement;
 __extend__(HTMLFieldSetElement.prototype, {
@@ -5638,8 +7094,7 @@ __extend__(HTMLFieldSetElement.prototype, {
  * HTMLFormElement - DOM Level 2
  */
 HTMLFormElement = function(ownerDocument){
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
     //TODO: on __elementPopped__ from the parser
     //      we need to determine all the forms default 
     //      values
@@ -5701,6 +7156,9 @@ __extend__(HTMLFormElement.prototype,{
 	    return this.setAttribute("target",val); 
 	    
     },
+    toString: function(){
+        return '[object HTMLFormElement]';
+    },
 	submit:function(){
         //TODO: this needs to perform the form inputs serialization
         //      and submission
@@ -5722,18 +7180,15 @@ __extend__(HTMLFormElement.prototype,{
  * HTMLFrameElement - DOM Level 2
  */
 HTMLFrameElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
     // this is normally a getter but we need to be
     // able to set it to correctly emulate behavior
+    this.contentDocument = null;
     this.contentWindow = null;
 };
 HTMLFrameElement.prototype = new HTMLElement;
 __extend__(HTMLFrameElement.prototype, {
     
-    get contentDocument(){
-        return null;
-    },
     get frameBorder(){
         return this.getAttribute('border')||"";
     },
@@ -5782,6 +7237,9 @@ __extend__(HTMLFrameElement.prototype, {
     set src(value){
         this.setAttribute('src', value);
     },
+    toString: function(){
+        return '[object HTMLFrameElement]';
+    },
     onload: HTMLEvents.prototype.onload
 });
 
@@ -5789,8 +7247,7 @@ __extend__(HTMLFrameElement.prototype, {
  * HTMLFrameSetElement - DOM Level 2
  */
 HTMLFrameSetElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLFrameSetElement.prototype = new HTMLElement;
 __extend__(HTMLFrameSetElement.prototype, {
@@ -5812,8 +7269,7 @@ __extend__(HTMLFrameSetElement.prototype, {
  * HTMLHeadElement - DOM Level 2
  */
 HTMLHeadElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLHeadElement.prototype = new HTMLElement;
 __extend__(HTMLHeadElement.prototype, {
@@ -5836,7 +7292,10 @@ __extend__(HTMLHeadElement.prototype, {
         //TODO: evaluate scripts which are appended to the head
         //__evalScript__(newChild);
         return newChild;
-    }
+    },
+    toString: function(){
+        return '[object HTMLHeadElement]';
+    },
 });
 
 
@@ -5844,8 +7303,7 @@ __extend__(HTMLHeadElement.prototype, {
  * HTMLIFrameElement - DOM Level 2
  */
 HTMLIFrameElement = function(ownerDocument) {
-    this.HTMLFrameElement = HTMLFrameElement;
-    this.HTMLFrameElement(ownerDocument);
+    HTMLFrameElement.apply(this, arguments);
 };
 HTMLIFrameElement.prototype = new HTMLFrameElement;
 __extend__(HTMLIFrameElement.prototype, {
@@ -5860,6 +7318,9 @@ __extend__(HTMLIFrameElement.prototype, {
     },
 	set width(val) { 
 	    return this.setAttribute("width",val); 
+    },
+    toString: function(){
+        return '[object HTMLIFrameElement]';
     }
 });
 	
@@ -5867,8 +7328,7 @@ __extend__(HTMLIFrameElement.prototype, {
  * HTMLImageElement - DOM Level 2
  */
 HTMLImageElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLImageElement.prototype = new HTMLElement;
 __extend__(HTMLImageElement.prototype, {
@@ -5926,8 +7386,7 @@ __extend__(HTMLImageElement.prototype, {
  * HTMLInputElement - DOM Level 2
  */
 HTMLInputElement = function(ownerDocument) {
-    this.HTMLInputAreaCommon = HTMLInputAreaCommon;
-    this.HTMLInputAreaCommon(ownerDocument);
+    HTMLInputAreaCommon.apply(this, arguments);
 };
 HTMLInputElement.prototype = new HTMLInputAreaCommon;
 __extend__(HTMLInputElement.prototype, {
@@ -5984,8 +7443,7 @@ __extend__(HTMLInputElement.prototype, {
  * HTMLLabelElement - DOM Level 2
  */
 HTMLLabelElement = function(ownerDocument) {
-    this.HTMLInputCommon = HTMLInputCommon;
-    this.HTMLInputCommon(ownerDocument);
+    HTMLInputCommon.apply(this, arguments);
 };
 HTMLLabelElement.prototype = new HTMLInputCommon;
 __extend__(HTMLLabelElement.prototype, inputElements_dataProperties);
@@ -6009,8 +7467,7 @@ __extend__(HTMLLabelElement.prototype, {
 * HTMLLinkElement - DOM Level 2
 */
 HTMLLinkElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLLinkElement.prototype = new HTMLElement;
 __extend__(HTMLLinkElement.prototype, {
@@ -6078,8 +7535,7 @@ __extend__(HTMLLinkElement.prototype, {
  * HTMLMapElement - DOM Level 2
  */
 HTMLMapElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLMapElement.prototype = new HTMLElement;
 __extend__(HTMLMapElement.prototype, {
@@ -6098,8 +7554,7 @@ __extend__(HTMLMapElement.prototype, {
  * HTMLMetaElement - DOM Level 2
  */
 HTMLMetaElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLMetaElement.prototype = new HTMLElement;
 __extend__(HTMLMetaElement.prototype, {
@@ -6134,8 +7589,7 @@ __extend__(HTMLMetaElement.prototype, {
  * HTMLObjectElement - DOM Level 2
  */
 HTMLObjectElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLObjectElement.prototype = new HTMLElement;
 __extend__(HTMLObjectElement.prototype, {
@@ -6221,8 +7675,7 @@ __extend__(HTMLObjectElement.prototype, {
  * HTMLOptGroupElement - DOM Level 2
  */
 HTMLOptGroupElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLOptGroupElement.prototype = new HTMLElement;
 __extend__(HTMLOptGroupElement.prototype, {
@@ -6238,14 +7691,37 @@ __extend__(HTMLOptGroupElement.prototype, {
     set label(value){
         this.setAttribute('label',value);
     },
+    appendChild: function(node){
+        var i, 
+            length,
+            selected = false;
+        //make sure at least one is selected by default
+        if(node.nodeType == Node.ELEMENT_NODE && node.tagName == 'OPTION'){
+            length = this.childNodes.length;
+            for(i=0;i<length;i++){
+                if(this.childNodes[i].nodeType == Node.ELEMENT_NODE && 
+                    this.childNodes[i].tagName == 'OPTION'){
+                    //check if it is selected
+                    if(this.selected){
+                        selected = true;
+                        break;
+                    }
+                }
+            }
+            if(!selected){
+                node.selected = true;
+                this.value = node.value?node.value:'';
+            }
+        }
+        return HTMLElement.prototype.appendChild.apply(this, [node]);
+    }
 });
 	
 /**
  * HTMLOptionElement - DOM Level 2
  */
 HTMLOptionElement = function(ownerDocument) {
-    this.HTMLInputCommon = HTMLInputCommon;
-    this.HTMLInputCommon(ownerDocument);
+    HTMLInputCommon.apply(this, arguments);
 };
 HTMLOptionElement.prototype = new HTMLInputCommon;
 __extend__(HTMLOptionElement.prototype, {
@@ -6256,10 +7732,14 @@ __extend__(HTMLOptionElement.prototype, {
         this.setAttribute('defaultSelected',value);
     },
     get index(){
-        var options = this.parent.childNodes;
-        for(var i; i<options.length;i++){
+        var options = this.parentNode.childNodes,
+            i, index = 0;
+        for(i=0; i<options.length;i++){
+            if(options.nodeType === Node.ELEMENT_NODE && node.tagName === "OPTION"){
+                index++;
+            }
             if(this == options[i])
-                return i;
+                return index;
         }
         return -1;
     },
@@ -6273,8 +7753,9 @@ __extend__(HTMLOptionElement.prototype, {
         return (this.getAttribute('selected')=='selected');
     },
     set selected(value){
+        //console.log('option set selected %s', value);
         if(this.defaultSelected===null && this.selected!==null){
-            this.defaultSelected = this.selected;
+            this.defaultSelected = this.selected+'';
         }
         var selectedValue = (value ? 'selected' : '');
         if (this.getAttribute('selected') == selectedValue) {
@@ -6282,24 +7763,8 @@ __extend__(HTMLOptionElement.prototype, {
             // select's value which modifies option's selected)
             return;
         }
+        //console.log('option setAttribute selected %s', selectedValue);
         this.setAttribute('selected', selectedValue);
-        if (value) {
-            // set select's value to this option's value (this also 
-            // unselects previously selected value)
-            this.parentNode.value = this.value;
-        } else {
-            // if no other option is selected, select the first option in the select
-            var i, anythingSelected;
-            for (i=0; i<this.parentNode.options.length; i++) {
-                if (this.parentNode.options[i].selected) {
-                    anythingSelected = true;
-                    break;
-                }
-            }
-            if (!anythingSelected) {
-                this.parentNode.value = this.parentNode.options[0].value;
-            }
-        }
 
     },
     get text(){
@@ -6308,11 +7773,13 @@ __extend__(HTMLOptionElement.prototype, {
              this.nodeValue;
     },
     get value(){
+       //console.log('getting value on option %s %s', this.text, this.getAttribute('value'));
         return ((this.getAttribute('value') === undefined) || (this.getAttribute('value') === null)) ?
             this.text :
             this.getAttribute('value');
     },
     set value(value){
+       //console.log('setting value on option');
         this.setAttribute('value',value);
     }
 });
@@ -6322,8 +7789,7 @@ __extend__(HTMLOptionElement.prototype, {
 * HTMLParagraphElement - DOM Level 2
 */
 HTMLParagraphElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLParagraphElement.prototype = new HTMLElement;
 __extend__(HTMLParagraphElement.prototype, {
@@ -6337,8 +7803,7 @@ __extend__(HTMLParagraphElement.prototype, {
  * HTMLParamElement - DOM Level 2
  */
 HTMLParamElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLParamElement.prototype = new HTMLElement;
 __extend__(HTMLParamElement.prototype, {
@@ -6373,8 +7838,7 @@ __extend__(HTMLParamElement.prototype, {
  * HTMLScriptElement - DOM Level 2
  */
 HTMLScriptElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLScriptElement.prototype = new HTMLElement;
 __extend__(HTMLScriptElement.prototype, {
@@ -6422,13 +7886,13 @@ __extend__(HTMLScriptElement.prototype, {
         this.setAttribute('defer',value);
     },
     get src(){
-        return this.getAttribute('src');
+        return this.getAttribute('src')||'';
     },
     set src(value){
         this.setAttribute('src',value);
     },
     get type(){
-        return this.getAttribute('type');
+        return this.getAttribute('type')||'';
     },
     set type(value){
         this.setAttribute('type',value);
@@ -6442,8 +7906,7 @@ __extend__(HTMLScriptElement.prototype, {
  * HTMLSelectElement - DOM Level 2
  */
 HTMLSelectElement = function(ownerDocument) {
-    this.HTMLTypeValueInputs = HTMLTypeValueInputs;
-    this.HTMLTypeValueInputs(ownerDocument);
+    HTMLTypeValueInputs.apply(this, arguments);
 
     this._oldIndex = -1;
 };
@@ -6456,30 +7919,43 @@ __extend__(HTMLSelectElement.prototype, {
 
     // over-ride the value setter in HTMLTypeValueInputs
     set value(newValue) {
+       console.log('select set value %s', newValue);
         var options = this.options,
             i, index;
+       //console.log('select options length %s', options.length);
         for (i=0; i<options.length; i++) {
             if (options[i].value == newValue) {
                 index = i;
                 break;
             }
         }
+       //console.log('options index %s', index);
         if (index !== undefined) {
+           //console.log('select setAttribute value %s', newValue);
             this.setAttribute('value', newValue);
             this.selectedIndex = index;
         }
     },
     get value() {
-        var value = this.getAttribute('value');
+        console.log('select get value');
+        var value = this.getAttribute('value'),
+            index;
+        console.log('select getAttribute value %s', value);
         if (value === undefined || value === null) {
-            var index = this.selectedIndex;
-            return (index != -1) ? this.options[index].value : "";
+            index = this.selectedIndex;
+            console.log('select value index %s', index);
+            if (index > -1){
+                 value = this.options[index].value;
+                 console.log('select value %s', value);
+                 return value;
+            }else{
+                console.log('select value ""');
+                return '';
+            }
         } else {
             return value;
         }
     },
-
-
     get length(){
         return this.options.length;
     },
@@ -6493,26 +7969,36 @@ __extend__(HTMLSelectElement.prototype, {
         return this.getElementsByTagName('option');
     },
     get selectedIndex(){
+       //console.log('select get selectedIndex ');
         var options = this.options;
         for(var i=0;i<options.length;i++){
             if(options[i].selected){
+               //console.log('select get selectedIndex %s', i);
                 return i;
             }
         };
+       //console.log('select get selectedIndex %s', -1);
         return -1;
     },
     
     set selectedIndex(value) {
-        var i;
-        for (i=0; i<this.options.length; i++) {
-            this.options[i].selected = (i == Number(value));
+        var i,
+            options = this.options;
+        for (i=0; i<options.length; i++) {
+           //console.log('select set selectedIndex %s', Number(value));
+            if(i === Number(value)){
+                options[i].selected = true;
+            }else{
+                options[i].selected = false;
+            }
+           //console.log('select options[i].selected %s',options[i].selected);
         }
     },
     get type(){
         var type = this.getAttribute('type');
         return type?type:'select-one';
     },
-
+    
     add : function(){
         __add__(this);
     },
@@ -6527,8 +8013,7 @@ __extend__(HTMLSelectElement.prototype, {
  * HTMLStyleElement - DOM Level 2
  */
 HTMLStyleElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLStyleElement.prototype = new HTMLElement;
 __extend__(HTMLStyleElement.prototype, {
@@ -6557,10 +8042,8 @@ __extend__(HTMLStyleElement.prototype, {
  * Implementation Provided by Steven Wood
  */
 HTMLTableElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
-
 HTMLTableElement.prototype = new HTMLElement;
 __extend__(HTMLTableElement.prototype, {
     
@@ -6610,7 +8093,7 @@ __extend__(HTMLTableElement.prototype, {
         }
     },
  
-    appendChild : function (child) {
+    /*appendChild : function (child) {
         
         var tagName;
         if(child&&child.nodeType==Node.ELEMENT_NODE){
@@ -6636,7 +8119,7 @@ __extend__(HTMLTableElement.prototype, {
             //tables can still have text node from white space
             return Node.prototype.appendChild.apply(this, arguments);
         }
-    },
+    },*/
      
     get tBodies() {
         return new HTMLCollection(this.getElementsByTagName("tbody"));
@@ -6753,13 +8236,12 @@ __extend__(HTMLTableElement.prototype, {
 * - Contributed by Steven Wood
 */
 HTMLTableSectionElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLTableSectionElement.prototype = new HTMLElement;
 __extend__(HTMLTableSectionElement.prototype, {    
     
-    appendChild : function (child) {
+    /*appendChild : function (child) {
     
         // disallow nesting of these elements.
         if (child.tagName.match(/TBODY|TFOOT|THEAD/)) {
@@ -6768,7 +8250,7 @@ __extend__(HTMLTableSectionElement.prototype, {
             return Node.prototype.appendChild.apply(this, arguments);
         }
 
-    },
+    },*/
     
     get align() {
         return this.getAttribute("align");
@@ -6843,8 +8325,7 @@ __extend__(HTMLTableSectionElement.prototype, {
  * Implementation Provided by Steven Wood
  */
 HTMLTableCellElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLTableCellElement.prototype = new HTMLElement;
 __extend__(HTMLTableCellElement.prototype, {
@@ -6857,8 +8338,7 @@ __extend__(HTMLTableCellElement.prototype, {
  * HTMLTextAreaElement - DOM Level 2
  */
 HTMLTextAreaElement = function(ownerDocument) {
-    this.HTMLInputAreaCommon = HTMLInputAreaCommon;
-    this.HTMLInputAreaCommon(ownerDocument);
+    HTMLInputAreaCommon.apply(this, arguments);
 };
 HTMLTextAreaElement.prototype = new HTMLInputAreaCommon;
 __extend__(HTMLTextAreaElement.prototype, {
@@ -6881,8 +8361,7 @@ __extend__(HTMLTextAreaElement.prototype, {
  * HTMLTitleElement - DOM Level 2
  */
 HTMLTitleElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLTitleElement.prototype = new HTMLElement;
 __extend__(HTMLTitleElement.prototype, {
@@ -6902,19 +8381,18 @@ __extend__(HTMLTitleElement.prototype, {
  * Implementation Provided by Steven Wood
  */
 HTMLTableRowElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
+    HTMLElement.apply(this, arguments);
 };
 HTMLTableRowElement.prototype = new HTMLElement;
 __extend__(HTMLTableRowElement.prototype, {
     
-    appendChild : function (child) {
+    /*appendChild : function (child) {
     
        var retVal = Node.prototype.appendChild.apply(this, arguments);
        retVal.cellIndex = this.cells.length -1;
              
        return retVal;
-    },
+    },*/
     // align gets or sets the horizontal alignment of data within cells of the row.
     get align() {
         return this.getAttribute("align");
@@ -7013,9 +8491,7 @@ __extend__(HTMLTableRowElement.prototype, {
  * HTMLUnknownElement DOM Level 2
  */
 HTMLUnknownElement = function(ownerDocument) {
-    this.HTMLElement = HTMLElement;
-    this.HTMLElement(ownerDocument);
-
+    HTMLElement.apply(this, arguments);
 };
 HTMLUnknownElement.prototype = new HTMLElement;
 __extend__(HTMLUnknownElement.prototype,{
@@ -7032,23 +8508,16 @@ __extend__(HTMLUnknownElement.prototype,{
  */
 
 })();
-/*
- * Envjs xhr.1.2.0.0 
- * Pure JavaScript Browser Environment
- * By John Resig <http://ejohn.org/> and the Envjs Team
- * Copyright 2008-2010 John Resig, under the MIT License
- * 
- * Parts of the implementation originally written by Yehuda Katz.
- * 
- * This file simply provides the global definitions we need to 
- * be able to correctly implement to core browser (XML)HTTPRequest 
- * interfaces.
- */
-var Location,
-    XMLHttpRequest;
 
+/**
+ * DOM Style Level 2
+ */
+var CSS2Properties,
+    CSSRule,
+    CSSStyleSheet;
+    
 /*
- * Envjs xhr.1.2.0.0 
+ * Envjs css.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -7084,702 +8553,426 @@ function __setArray__( target, array ) {
     target.length = 0;
     Array.prototype.push.apply( target, array );
 };
-/**
- * @author ariel flesler
- *    http://flesler.blogspot.com/2008/11/fast-trim-function-for-javascript.html 
- * @param {Object} str
- */
-function __trim__( str ){
-    return (str || "").replace( /^\s+|\s+$/g, "" );
-    
+/*
+* CSS2Properties - DOM Level 2 CSS
+*/
+//var __cssproperties__ = 0;
+CSS2Properties = function(element){
+    //console.log('css2properties %s', __cssproperties__++);
+    this.styleIndex = __supportedStyles__();//non-standard
+    this.type = element.tagName;//non-standard
+    __setArray__(this,[]);
+    __cssTextToStyles__(this, element.getAttribute('style')||'');
 };
-
-/**
- * @todo: document
- */
-__extend__(Document.prototype,{
-    load: function(url){
-        if(this.documentURI == 'about:html'){
-            this.location.assign(url);
-        }else if(this.documentURI == url){
-            this.location.reload(false);
+__extend__(CSS2Properties.prototype, {
+    get cssText(){
+        var css = '',
+            i;
+        for(i=0;i<this.length;i++){
+            css+=this[i]+": "+this.getPropertyValue(this[i])+';';
+            if(i+1<this.length)
+                css+=" ";
+        }
+        return css;
+    },
+    set cssText(cssText){ 
+        __cssTextToStyles__(this, cssText); 
+    },
+    getPropertyCSSValue : function(name){
+        //?
+    },
+    getPropertyPriority : function(){
+        
+    },
+    getPropertyValue : function(name){
+        var index;
+        if(__toCamelCase__(name) in this.styleIndex){
+            //$info(name +' in style index');
+            return this[__toCamelCase__(name)];
         }else{
-            this.location.replace(url);
+            index = Array.prototype.indexOf.apply(this, [name]);
+            if(index > -1)
+                return this[index];
+        }
+        //$info(name +' not found');
+        return null;
+    },
+    item : function(index){
+        return this[index];
+    },
+    removeProperty: function(name){
+        this.styleIndex[name] = null;
+        name = __toDashed__(name);
+        var index = Array.prototype.indexOf.apply(this, [name]);
+        if(index > -1){
+            Array.prototype.splice.apply(this, [1,index]);
         }
     },
-    get location(){
-        return new Location(this.documentURI, this);
+    setProperty: function(name, value, priority){
+        //$info('setting css property '+name+' : '+value);
+        name = __toCamelCase__(name);
+        if(value && (value+'').match(/^([0-9]*\.)?[0-9]+$/)){
+            value = Number(value);
+            //console.log('converted %s to number %s', name, value);
+        }
+        if(name in this.styleIndex  && value !== undefined){
+            //$info('setting camel case css property ');
+            this.styleIndex[name] = value;
+            //$info('setting dashed name css property ');
+            name = __toDashed__(name);
+            if( Array.prototype.indexOf.apply(this, [name]) === -1 ){
+                Array.prototype.push.apply(this,[name]);
+            }
+        }
+        //$info('finished setting css property '+name+' : '+value);
     },
-    set location(url){
-        this.location.replace(url);
+    toString:function(){
+        return '[object CSS2Properties]';
     }
 });
 
 
-HTMLFormElement.prototype.submit = function(){
-    var event = __submit__(this),
-        serialized,
-        xhr,
-        method,
-        action;
-    if(!event.cancelled){
-        serialized = __formSerialize__(this);
-        xhr = new XMLHttpRequest();
-        method = this.method !== ""?this.method:"GET";
-        action = this.action !== ""?this.action:this.ownerDocument.baseURI;
-        xhr.open(method, action, false);
-        xhr.send(data, false);
-        if(xhr.readyState === 4){
-            __exchangeHTMLDocument__(this.ownerDocument, xhr.responseText, url);
-        }
-    }   
-}
-/**
- * Form Submissions
- * 
- * This code is borrow largely from jquery.params and jquery.form.js
- * 
- * formToArray() gathers form element data into an array of objects that can
- * be passed to any of the following ajax functions: $.get, $.post, or load.
- * Each object in the array has both a 'name' and 'value' property.  An example of
- * an array for a simple login form might be:
- *
- * [ { name: 'username', value: 'jresig' }, { name: 'password', value: 'secret' } ]
- *
- * It is this array that is passed to pre-submit callback functions provided to the
- * ajaxSubmit() and ajaxForm() methods.
- *
- * The semantic argument can be used to force form serialization in semantic order.
- * This is normally true anyway, unless the form contains input elements of type='image'.
- * If your form must be submitted with name/value pairs in semantic order and your form
- * contains an input of type='image" then pass true for this arg, otherwise pass false
- * (or nothing) to avoid the overhead for this logic.
- *
- *
- * @name formToArray
- * @param semantic true if serialization must maintain strict semantic ordering of elements (slower)
- * @type Array<Object>
- */
-var __formToArray__ = function(form, semantic) {
-    var array = [],
-        elements = semantic ? form.getElementsByTagName('*') : form.elements,
-        element,
-        i,j,imax, jmax,
-        name,
-        value;
-        
-    if (!elements) 
-        return array;
+
+var __cssTextToStyles__ = function(css2props, cssText){
     
-    imax = elements.length;
-    for(i=0; i < imax; i++) {
-        element = elements[i];
-        name = element.name;
-        if (!name) 
-            continue;
-
-        if (semantic && form.clk && element.type == "image") {
-            // handle image inputs on the fly when semantic == true
-            if(!element.disabled && form.clk == element)
-                array.push({
-                    name: name+'.x', 
-                    value: form.clk_x
-                },{
-                    name: name+'.y', 
-                    value: form.clk_y
-                });
-            continue;
-        }
-
-        value = __fieldValue__(element, true);
-        if (value && value.constructor == Array) {
-            jmax = value.length;
-            for(j=0; j < jmax; j++){
-                array.push({name: name, value: value[j]});
-            }
-        } else if (value !== null && typeof value != 'undefined'){
-            array.push({name: name, value: value});
-        }
-    }
-
-    if (!semantic && form.clk) {
-        // input type=='image' are not found in elements array! handle them here
-        elements = form.getElementsByTagName("input");
-        imax = imax=elements.length;
-        for(i=0; i < imax; i++) {
-            element = elements[i];
-            name = element.name;
-            if(name && !element.disabled && element.type == "image" && form.clk == input)
-                array.push(
-                    {name: name+'.x', value: form.clk_x}, 
-                    {name: name+'.y', value: form.clk_y});
-        }
-    }
-    return array;
-};
-
-
-/**
- * Serializes form data into a 'submittable' string. This method will return a string
- * in the format: name1=value1&amp;name2=value2
- *
- * The semantic argument can be used to force form serialization in semantic order.
- * If your form must be submitted with name/value pairs in semantic order then pass
- * true for this arg, otherwise pass false (or nothing) to avoid the overhead for
- * this logic (which can be significant for very large forms).
- *
- *
- * @name formSerialize
- * @param semantic true if serialization must maintain strict semantic ordering of elements (slower)
- * @type String
- */
-var __formSerialize__ = function(form, semantic) {
-    //hand off to param for proper encoding
-    return __param__(__formToArray__(form, semantic));
-};
-
-
-/**
- * Serializes all field elements inputs Array into a query string.
- * This method will return a string in the format: name1=value1&amp;name2=value2
- *
- * The successful argument controls whether or not serialization is limited to
- * 'successful' controls (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
- * The default value of the successful argument is true.
- *
- *
- * @name fieldSerialize
- * @param successful true if only successful controls should be serialized (default is true)
- * @type String
- */
-var __fieldSerialize__ = function(inputs, successful) {
-    var array = [],
-        input,
-        name,
-        value,
-        i,j, imax, jmax;
-        
-    imax = inputs.length;
-    for(i=0; i<imax; i++){
-        input = inputs[i];
-        name = input.name;
-        if (!name) 
-            return;
-        value = __fieldValue__(input, successful);
-        if (value && value.constructor == Array) {
-            jmax = value.length;
-            for (j=0; j < max; j++){
-                array.push({
-                    name: name, 
-                    value: value[j]
-                });
-            }
-        }else if (value !== null && typeof value != 'undefined'){
-            array.push({
-                name: input.name, 
-                value: value
-            });
-        }
-    };
-    //hand off  for proper encoding
-    return __param__(array);
-};
-
-
-/**
- * Returns the value(s) of the element in the matched set.  For example, consider the following form:
- *
- *
- * The successful argument controls whether or not the field element must be 'successful'
- * (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
- * The default value of the successful argument is true.  If this value is false the value(s)
- * for each element is returned.
- *
- * Note: This method *always* returns an array.  If no valid value can be determined the
- *       array will be empty, otherwise it will contain one or more values.
- *
- *
- * @name fieldValue
- * @param Boolean successful true if only the values for successful controls 
- *        should be returned (default is true)
- * @type Array<String>
- */
-var __fieldValues__ = function(inputs, successful) {
-    var i, 
-        imax = inputs.length,
-        element,
-        values = [],
-        value;
-    for (i=0; i < imax; i++) {
-        element = inputs[i];
-        value = __fieldValue__(element, successful);
-        if (value === null || typeof value == 'undefined' || 
-            (value.constructor == Array && !value.length))
-            continue;
-        value.constructor == Array ? 
-            Array.prototype.push(values, value) : 
-            values.push(value);
-    }
-    return values;
-};
-
-/**
- * Returns the value of the field element.
- *
- * The successful argument controls whether or not the field element must be 'successful'
- * (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
- * The default value of the successful argument is true.  If the given element is not
- * successful and the successful arg is not false then the returned value will be null.
- *
- * Note: If the successful flag is true (default) but the element is not successful, the return will be null
- * Note: The value returned for a successful select-multiple element will always be an array.
- * Note: If the element has no value the return value will be undefined.
- *
- * @name fieldValue
- * @param Element el The DOM element for which the value will be returned
- * @param Boolean successful true if value returned must be for a successful controls (default is true)
- * @type String or Array<String> or null or undefined
- */
-var __fieldValue__ = function(element, successful) {
-    var name = element.name, 
-        type = element.type, 
-        tag = element.tagName.toLowerCase(),
-        index,
-        array,
-        options,
-        option,
-        one,
-        i, imax,
-        value;
-    if (typeof successful == 'undefined') successful = true;
-
-    if (successful && (!name || element.disabled || type == 'reset' || type == 'button' ||
-             (type == 'checkbox' || type == 'radio') &&  !element.checked || 
-             (type == 'submit' || type == 'image') && 
-             element.form && element.form.clk != element || tag == 'select' && 
-             element.selectedIndex == -1))
-            return null;
-
-    if (tag == 'select') {
-        index = element.selectedIndex;
-        if (index < 0) 
-            return null;
-        array = [];
-        options = element.options;
-        one = (type == 'select-one');
-        imax = (one ? index+1 : options.length);
-        i = (one ? index : 0);
-        for( i; i < imax; i++) {
-            option = options[i];
-            if (option.selected) {
-                value = option.value;
-                if (one) 
-                    return value;
-                array.push(value);
-            }
-        }
-        return array;
-    }
-    return element.value;
-};
-
-
-/**
- * Clears the form data.  Takes the following actions on the form's input fields:
- *  - input text fields will have their 'value' property set to the empty string
- *  - select elements will have their 'selectedIndex' property set to -1
- *  - checkbox and radio inputs will have their 'checked' property set to false
- *  - inputs of type submit, button, reset, and hidden will *not* be effected
- *  - button elements will *not* be effected
- *
- *
- * @name clearForm
- */
-var __clearForm__ = function(form) {
-    var i, 
-        j, jmax,
-        elements,
-        resetable = ['input','select','textarea'];
-    for(i=0; i<resetable.lenth; i++){
-        elements = form.getElementsByTagName(resetable[i]);
-        jmax = elements.length;
-        for(j=0;j<jmax;j++){
-            __clearField__(elements[j]);
-        }
+    //console.log('__cssTextToStyles__ %s %s', css2props, cssText);
+    //var styleArray=[];
+    var style, styles = cssText.split(';');
+    for ( var i = 0; i < styles.length; i++ ) {
+        //$log("Adding style property " + styles[i]);
+    	style = styles[i].split(':');
+        //$log(" style  " + style[0]);
+    	if ( style.length == 2 ){
+            //$log(" value  " + style[1]);
+    	    css2props.setProperty( style[0].replace(" ",'','g'), style[1].replace(" ",'','g'));
+    	}
     }
 };
 
-/**
- * Clears the selected form element.  Takes the following actions on the element:
- *  - input text fields will have their 'value' property set to the empty string
- *  - select elements will have their 'selectedIndex' property set to -1
- *  - checkbox and radio inputs will have their 'checked' property set to false
- *  - inputs of type submit, button, reset, and hidden will *not* be effected
- *  - button elements will *not* be effected
- *
- * @name clearFields
- */
-var __clearField__ = function(element) {
-    var type = element.type, 
-        tag = element.tagName.toLowerCase();
-    if (type == 'text' || type == 'password' || tag == 'textarea')
-        element.value = '';
-    else if (type == 'checkbox' || type == 'radio')
-        element.checked = false;
-    else if (tag == 'select')
-        element.selectedIndex = -1;
-};
-
-
-// Serialize an array of key/values into a query string
-var __param__= function( array ) {
-    var serialized = [];
-
-    // Serialize the key/values
-    for(i=0; i<array.length; i++){
-        serialized[ serialized.length ] = 
-            encodeURIComponent(array[i].name) + '=' + 
-            encodeURIComponent(array[i].value);
+var __toCamelCase__ = function(name) {
+    //$info('__toCamelCase__'+name);
+    if(name){
+    	return name.replace(/\-(\w)/g, function(all, letter){
+    		return letter.toUpperCase();
+    	});
     }
-
-    // Return the resulting serialization
-    return serialized.join("&").replace(/%20/g, "+");
+    return name;
 };
- 
-/**
- * @todo: document
- */
-var HASH     = new RegExp('(\\#.*)'),
-    HOSTNAME = new RegExp('\/\/([^\:\/]+)'),
-    PATHNAME = new RegExp('(\/[^\\?\\#]*)'),
-    PORT     = new RegExp('\:(\\d+)\/'),
-    PROTOCOL = new RegExp('(^\\w*\:)'),
-    SEARCH   = new RegExp('(\\?[^\\#]*)');
-        
-Location = function(url, doc, history){
-    
-    //console.log('Location url %s', url);
-    var $url = url
-        $document = doc?doc:null,
-        $history = history?history:null;
-    
+
+var __toDashed__ = function(camelCaseName) {
+    //$info("__toDashed__"+camelCaseName);
+    if(camelCaseName){
+    	return camelCaseName.replace(/[A-Z]/g, function(all) {
+    		return "-" + all.toLowerCase();
+    	});
+    }
+    return camelCaseName;
+};
+
+//Obviously these arent all supported but by commenting out various sections
+//this provides a single location to configure what is exposed as supported.
+var __supportedStyles__ = function(){
     return {
-        get hash(){
-            var m = HASH.exec($url);
-            return m&&m.length>1?m[1]:"";
-        },
-        set hash(hash){
-            $url = this.protocol + this.host + this.pathname + 
-                this.search + (hash.indexOf('#')===0?hash:"#"+hash);
-            if($history){
-                $history.add( $url, 'hash');
-            }
-        },
-        get host(){
-            return this.hostname + (this.port !== ""?":"+this.port:"");
-        },
-        set host(host){
-            $url = this.protocol + host + this.pathname + 
-                this.search + this.hash;
-            if($history){
-                $history.add( $url, 'host');
-            }
-            this.assign($url);
-        },
-        get hostname(){
-            var m = HOSTNAME.exec(this.href);
-            return m&&m.length>1?m[1]:"";
-        },
-        set hostname(hostname){
-            $url = this.protocol + hostname + ((this.port==="")?"":(":"+this.port)) +
-                 this.pathname + this.search + this.hash;
-            if($history){
-                $history.add( $url, 'hostname');
-            }
-            this.assign($url);
-        },
-        get href(){
-            return $url;
-        },
-        set href(url){
-            $url = url;  
-            if($history){
-                $history.add( $url, 'href');
-            }
-            this.assign($url);
-        },
-        get pathname(){
-            var m = this.href;
-            m = PATHNAME.exec(m.substring(m.indexOf(this.hostname)));
-            return m&&m.length>1?m[1]:"/";
-        },
-        set pathname(pathname){
-            $url = this.protocol + this.host + pathname + 
-                this.search + this.hash;
-            if($history){
-                $history.add( $url, 'pathname');
-            }
-            this.assign($url);
-        },
-        get port(){
-            var m = PORT.exec(this.href);
-            return m&&m.length>1?m[1]:"";
-        },
-        set port(port){
-            $url = this.protocol + this.hostname + ":"+port + this.pathname + 
-                this.search + this.hash;
-            if($history){
-                $history.add( $url, 'port');
-            }
-            this.assign($url);
-        },
-        get protocol(){
-            return this.href && PROTOCOL.exec(this.href)[0];
-        },
-        set protocol(protocol){
-            $url = protocol + this.host + this.pathname + 
-                this.search + this.hash;
-            if($history){
-                $history.add( $url, 'protocol');
-            }
-            this.assign($url);
-        },
-        get search(){
-            var m = SEARCH.exec(this.href);
-            return m&&m.length>1?m[1]:"";
-        },
-        set search(search){
-            $url = this.protocol + this.host + this.pathname + 
-                search + this.hash;
-            if($history){
-                $history.add( $url, 'search');
-            }
-            this.assign($url);
-        },
-        toString: function(){
-            return $url;
-        },
-        assign: function(url){
-            var _this = this,
-                xhr;
-            
-            //console.log('assigning %s',url);
-            $url = url;
-            //we can only assign if this Location is associated with a document
-            if($document){
-                //console.log("fetching %s (async? %s)", url, $document.async);
-                xhr = new XMLHttpRequest();
-                xhr.open("GET", url, $document.async);
-                
-                if($document.toString()=="[object HTMLDocument]"){
-                    //tell the xhr to not parse the document as XML
-                    //console.log("loading html document");
-                    xhr.onreadystatechange = function(){
-                        var html, head, title, body, event;
-                        //console.log("readyState %s", xhr.readyState);
-                        if(xhr.readyState === 4){
-                            __exchangeHTMLDocument__($document, xhr.responseText, url);
-                        }    
-                    };
-                    xhr.send(null, false);
-                }else{
-                    //Treat as an XMLDocument
-                    xhr.onreadystatechange = function(){
-                        if(xhr.readyState === 4){
-                            $document = xhr.responseXML;
-                            $document.baseURI = $url;
-                            if($document.createEvent){
-                                event = $document.createEvent('Events');
-                                event.initEvent("DOMContentLoaded");
-                                $document.dispatchEvent( event, false );
-                            }
-                        }
-                    };
-                    xhr.send();
+        azimuth:                null,
+        background:	            null,
+        backgroundAttachment:	null,
+        backgroundColor:	    null,
+        backgroundImage:	    null,
+        backgroundPosition:	    null,
+        backgroundRepeat:	    null,
+        border:	                null,
+        borderBottom:	        null,
+        borderBottomColor:	    null,
+        borderBottomStyle:	    null,
+        borderBottomWidth:	    null,
+        borderCollapse:	        null,
+        borderColor:	        null,
+        borderLeft:	            null,
+        borderLeftColor:	    null,
+        borderLeftStyle:	    null,
+        borderLeftWidth:	    null,
+        borderRight:	        null,
+        borderRightColor:	    null,
+        borderRightStyle:	    null,
+        borderRightWidth:	    null,
+        borderSpacing:	        null,
+        borderStyle:	        null,
+        borderTop:	            null,
+        borderTopColor:	        null,
+        borderTopStyle:	        null,
+        borderTopWidth:	        null,
+        borderWidth:	        null,
+        bottom:	                null,
+        captionSide:	        null,
+        clear:	                null,
+        clip:	                null,
+        color:	                null,
+        content:	            null,
+        counterIncrement:	    null,
+        counterReset:	        null,
+        cssFloat:	            null,
+        cue:	                null,
+        cueAfter:	            null,
+        cueBefore:	            null,
+        cursor:	                null,
+        direction:	            'ltr',
+        display:	            null,
+        elevation:	            null,
+        emptyCells:	            null,
+        font:	                null,
+        fontFamily:	            null,
+        fontSize:	            "1em",
+        fontSizeAdjust:	null,
+        fontStretch:	null,
+        fontStyle:	null,
+        fontVariant:	null,
+        fontWeight:	null,
+        height:	'',
+        left:	null,
+        letterSpacing:	null,
+        lineHeight:	null,
+        listStyle:	null,
+        listStyleImage:	null,
+        listStylePosition:	null,
+        listStyleType:	null,
+        margin:	null,
+        marginBottom:	"0px",
+        marginLeft:	"0px",
+        marginRight:	"0px",
+        marginTop:	"0px",
+        markerOffset:	null,
+        marks:	null,
+        maxHeight:	null,
+        maxWidth:	null,
+        minHeight:	null,
+        minWidth:	null,
+        opacity:	1,
+        orphans:	null,
+        outline:	null,
+        outlineColor:	null,
+        outlineOffset:	null,
+        outlineStyle:	null,
+        outlineWidth:	null,
+        overflow:	null,
+        overflowX:	null,
+        overflowY:	null,
+        padding:	null,
+        paddingBottom:	"0px",
+        paddingLeft:	"0px",
+        paddingRight:	"0px",
+        paddingTop:	"0px",
+        page:	null,
+        pageBreakAfter:	null,
+        pageBreakBefore:	null,
+        pageBreakInside:	null,
+        pause:	null,
+        pauseAfter:	null,
+        pauseBefore:	null,
+        pitch:	null,
+        pitchRange:	null,
+        position:	null,
+        quotes:	null,
+        richness:	null,
+        right:	null,
+        size:	null,
+        speak:	null,
+        speakHeader:	null,
+        speakNumeral:	null,
+        speakPunctuation:	null,
+        speechRate:	null,
+        stress:	null,
+        tableLayout:	null,
+        textAlign:	null,
+        textDecoration:	null,
+        textIndent:	null,
+        textShadow:	null,
+        textTransform:	null,
+        top:	null,
+        unicodeBidi:	null,
+        verticalAlign:	null,
+        visibility:	null,
+        voiceFamily:	null,
+        volume:	null,
+        whiteSpace:	null,
+        widows:	null,
+        width:	'1px',
+        wordSpacing:	null,
+        zIndex:	1
+    };
+};
+
+var __displayMap__ = {
+		"DIV"      : "block",
+		"P"        : "block",
+		"A"        : "inline",
+		"CODE"     : "inline",
+		"PRE"      : "block",
+		"SPAN"     : "inline",
+		"TABLE"    : "table",
+		"THEAD"    : "table-header-group",
+		"TBODY"    : "table-row-group",
+		"TR"       : "table-row",
+		"TH"       : "table-cell",
+		"TD"       : "table-cell",
+		"UL"       : "block",
+		"LI"       : "list-item"
+};
+var __styleMap__ = __supportedStyles__();
+
+for(var style in __supportedStyles__()){
+    (function(name){
+        if(name === 'width' || name === 'height'){
+            CSS2Properties.prototype.__defineGetter__(name, function(){
+                if(this.display==='none'){
+                    return '0px';
                 }
-                
-            };
-            
-        },
-        reload: function(forceget){
-            //for now we have no caching so just proxy to assign
-            //console.log('reloading %s',$url);
-            this.assign($url);
-        },
-        replace: function(url){
-            this.assign(url);
-        }
-    }
+                //$info(name+' = '+this.getPropertyValue(name));
+                return this.styleIndex[name];
+            });
+        }else if(name === 'display'){
+            //display will be set to a tagName specific value if ""
+            CSS2Properties.prototype.__defineGetter__(name, function(){
+                var val = this.styleIndex[name];
+                val = val?val:__displayMap__[this.type];
+                //$log(" css2properties.get  " + name + "="+val+" for("+this.__element__.tagName+")");
+                return val;
+            });
+        }else{
+            CSS2Properties.prototype.__defineGetter__(name, function(){
+                //$log(" css2properties.get  " + name + "="+this.styleIndex[name]);
+                return this.styleIndex[name];
+            });
+       }
+       CSS2Properties.prototype.__defineSetter__(name, function(value){
+           //$log(" css2properties.set  " + name +"="+value);
+           this.setProperty(name, value);
+       });
+    })(style);
 };
 
-var __exchangeHTMLDocument__ = function(doc, text, url){
 
-    //console.log('fetched text %s', text);
-    try{
-        doc.baseURI = url;
-        HTMLParser.parseDocument(text, doc);
-    }catch(e){
-        console.log('parseerror %s',e);
-        doc = new HTMLDocument(new DOMImplementation());
-        html =    doc.createElement('html');
-        head =    doc.createElement('head');
-        title =   doc.createElement('title');
-        body =    doc.createElement('body');
-        title.appendChild(doc.createTextNode("Error"));
-        body.appendChild(doc.createTextNode(e+''));
-        head.appendChild(title);
-        html.appendChild(head);
-        html.appendChild(body);
-        doc.appendChild(html);
-    }finally{
-        //DOMContentLoaded event
-        if(doc.createEvent){
-            event = doc.createEvent('Events');
-            event.initEvent("DOMContentLoaded", false, false);
-            doc.dispatchEvent( event, false );
+/* 
+* CSSRule - DOM Level 2
+*/
+CSSRule = function(options){
+  var $style, 
+      $selectorText = options.selectorText?options.selectorText:"";
+      $style = new CSS2Properties({
+          cssText:options.cssText?options.cssText:null
+      });
+    return __extend__(this, {
+      get style(){
+          return $style;
+      },
+      get selectorText(){
+          return $selectorText;
+      },
+      set selectorText(selectorText){
+          $selectorText = selectorText;
+      },
+        toString : function(){
+            return "[object CSSRule]";
         }
-        
-        //finally fire the window.onload event
-        //TODO: this belongs in window.js which is a event
-        //      event handler for DOMContentLoaded on document
-        
-        try{
-            if(doc === window.document){
-                event = doc.createEvent('HTMLEvents');
-                event.initEvent("load", false, false);
-                window.dispatchEvent( event, false );
-            }
-        }catch(e){
-            //console.log('window load event failed %s', e);
-            //swallow
-        }
-    }
+    });
 };
+
+
+/* 
+* CSSStyleSheet - DOM Level 2
+*/
+CSSStyleSheet = function(options){
+    var $cssRules, 
+        $disabled = options.disabled?options.disabled:false,
+        $href = options.href?options.href:null,
+        $parentStyleSheet = options.parentStyleSheet?options.parentStyleSheet:null,
+        $title = options.title?options.title:"",
+        $type = "text/css";
+        
+    function parseStyleSheet(text){
+        //$debug("parsing css");
+        //this is pretty ugly, but text is the entire text of a stylesheet
+        var cssRules = [];
+    	if (!text) text = "";
+    	text = trim(text.replace(/\/\*(\r|\n|.)*\*\//g,""));
+    	// TODO: @import ?
+    	var blocks = text.split("}");
+    	blocks.pop();
+    	var i, len = blocks.length;
+    	var definition_block, properties, selectors;
+    	for (i=0; i<len; i++){
+    		definition_block = blocks[i].split("{");
+    		if(definition_block.length === 2){
+          		selectors = definition_block[0].split(",");
+          		for(var j=0;j<selectors.length;j++){
+          		    cssRules.push(new CSSRule({
+          		        selectorText:selectors[j],
+          		        cssText:definition_block[1]
+          		    }));
+          		}
+          		__setArray__($cssRules, cssRules);
+    		}
+    	}
+    };
+    parseStyleSheet(options.text);
+    return __extend__(this, {
+        get cssRules(){
+            return $cssRules;
+        },
+        get rule(){
+            return $cssRules;
+        },//IE - may be deprecated
+        get href(){
+            return $href;
+        },
+        get parentStyleSheet(){
+            return $parentStyleSheet;
+        },
+        get title(){
+            return $title;
+        },
+        get type(){
+            return $type;
+        },
+        addRule: function(selector, style, index){/*TODO*/},
+        deleteRule: function(index){/*TODO*/},
+        insertRule: function(rule, index){/*TODO*/},
+        //IE - may be deprecated
+        removeRule: function(index){
+            this.deleteRule(index);
+        }
+    });
+};
+
 
 
 /**
- * 
- * @class XMLHttpRequest
- * @author Originally implemented by Yehuda Katz
- * 
+ * @author envjs team
  */
+$css2properties = [{}];
 
-// this implementation can be used without requiring a DOMParser
-// assuming you dont try to use it to get xml/html documents
-var domparser;
+__extend__(HTMLElement.prototype, {
+    get style(){
+        if ( !this.css2uuid ) {
+            this.css2uuid = $css2properties.length;
+            $css2properties[this.css2uuid] = new CSS2Properties(this);
+        }
+        return $css2properties[this.css2uuid];
+    },
+    setAttribute: function (name, value) {
+        Element.prototype.setAttribute.apply(this,[name, value]);
+        if (name === "style") {
+            __updateCss2Props__(this, value);
+        }
+    }
+});
 
-XMLHttpRequest = function(){
-	this.headers = {};
-	this.responseHeaders = {};
-    this.aborted = false;//non-standard
-};
-
-// it would be nice if these were part of the standard but
-// they are not.
-XMLHttpRequest.UNSENT = 0;
-XMLHttpRequest.OPEN = 0;
-XMLHttpRequest.HEADERS_RECEIVED = 0;
-XMLHttpRequest.LOADING = 0;
-XMLHttpRequest.DONE = 4;
-
-XMLHttpRequest.prototype = {
-	open: function(method, url, async, user, password){ 
-		this.readyState = 1;
-		this.async = (async === false)?false:true;
-		this.method = method || "GET";
-		this.url = Envjs.location(url);
-		this.onreadystatechange();
-	},
-	setRequestHeader: function(header, value){
-		this.headers[header] = value;
-	},
-	send: function(data, parsedoc/*non-standard*/){
-		var _this = this;
-        parsedoc = !!parsedoc;
-		function makeRequest(){
-            Envjs.connection(_this, function(){
-                if (!_this.aborted){
-                    var doc = null,
-                        domparser;
-                    // try to parse the document if we havent explicitly set a 
-                    // flag saying not to and if we can assure the text at least
-                    // starts with valid xml
-                    if ( parsedoc && _this.responseText.match(/^\s*</) ) {
-                        domparser = domparser||new DOMParser();
-                        try {
-                            //Envjs.debug("parsing response text into xml document");
-                            doc = domparser.parseFromString(_this.responseText+"");
-                        } catch(e) {
-                            //Envjs.error('response XML does not appear to be well formed xml', e);
-                            doc = document.implementation.createDocument('','error',null);
-                            doc.appendChild(doc.createTextNode(e+''));
-                        } 
-                    }else{
-                        //Envjs.warn('response XML does not appear to be xml');
-                    }
-                    _this.__defineGetter__("responseXML", function(){
-                        return doc;
-                    });
-                }
-			}, data);
-
-            if (!_this.aborted){
-                _this.onreadystatechange();
-            }
-		};
-
-		if (this.async){
-		    //Envjs.debug("XHR sending asynch;");
-            //TODO: what we really need to do here is rejoin the 
-            //      current thread and call onreadystatechange via
-            //      setTimeout so the callback is essentially applied
-            //      at the end of the current callstack
-			Envjs.runAsync(makeRequest);
-		}else{
-		    //Envjs.debug("XHR sending synch;");
-			makeRequest();
-		}
-	},
-	abort: function(){
-        this.aborted = true;
-	},
-	onreadystatechange: function(){
-		//Instance specific
-	},
-	getResponseHeader: function(header){
-      //$debug('GETTING RESPONSE HEADER '+header);
-	  var rHeader, returnedHeaders;
-		if (this.readyState < 3){
-			throw new Error("INVALID_STATE_ERR");
-		} else {
-			returnedHeaders = [];
-			for (rHeader in this.responseHeaders) {
-				if (rHeader.match(new RegExp(header, "i")))
-					returnedHeaders.push(this.responseHeaders[rHeader]);
-			}
-            
-			if (returnedHeaders.length){ 
-                //$debug('GOT RESPONSE HEADER '+returnedHeaders.join(", "));
-                return returnedHeaders.join(", "); 
-            }
-		}
-        return null;
-	},
-	getAllResponseHeaders: function(){
-	  var header, returnedHeaders = [];
-		if (this.readyState < 3){
-			throw new Error("INVALID_STATE_ERR");
-		} else {
-			for (header in this.responseHeaders){
-				returnedHeaders.push( header + ": " + this.responseHeaders[header] );
-			}
-		}return returnedHeaders.join("\r\n");
-	},
-	async: true,
-	readyState: 0,
-	responseText: "",
-	status: 0,
-    statusText: ""
+var __updateCss2Props__ = function(elem, values){
+    //console.log('__updateCss2Props__ %s %s', elem, values);
+    if ( !elem.css2uuid ) {
+        elem.css2uuid = $css2properties.length;
+        $css2properties[elem.css2uuid] = new CSS2Properties(elem);
+    }
+    __cssTextToStyles__($css2properties[elem.css2uuid], values);
 };
 
 /**
@@ -7791,14 +8984,15 @@ XMLHttpRequest.prototype = {
 
 })();
 
-
-var DOMParser,
-    XMLParser,
-    HTMLParser;
+//these are both non-standard globals that
+//provide static namespaces and functions
+//to support the html 5 parser from nu.
+var XMLParser = {},
+    HTMLParser = {};
 
     
 /*
- * Envjs parser.1.2.0.0 
+ * Envjs parser.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -7834,7 +9028,14 @@ function __setArray__( target, array ) {
     target.length = 0;
     Array.prototype.push.apply( target, array );
 };var __defineParser__;
-(function () {var $gwt_version = "1.5.1";var $wnd = {};var $doc = {};var $moduleName, $moduleBase;var $stats = $wnd.__gwtStatsEvent ? function(a) {$wnd.__gwtStatsEvent(a)} : null;var cNh='',qPg='\n',n4h='\n ',Bxg=' which is not a legal XML 1.0 character.',cNg='#mathplayer',zOg='#renesis',rZg='(',vxg=').',iwh='): ',fPh='+//silmaril//dtd html pro v0r11 19970101//',cWg=', ',mih=', Size: ',dNh='-//W3C//DTD HTML 4.0 Frameset//EN',oNh='-//W3C//DTD HTML 4.0 Transitional//EN',zNh='-//W3C//DTD HTML 4.0//EN',eOh='-//W3C//DTD HTML 4.01 Frameset//EN',pOh='-//W3C//DTD HTML 4.01 Transitional//EN',AOh='-//W3C//DTD HTML 4.01//EN',utg='-//W3C//DTD XHTML 1.0 Strict//EN',lug='-//W3C//DTD XHTML 1.1//EN',qPh='-//advasoft ltd//dtd html 3.0 aswedit + extensions//',BPh='-//as//dtd html 3.0 aswedit + extensions//',gQh='-//ietf//dtd html 2.0 level 1//',sQh='-//ietf//dtd html 2.0 level 2//',DQh='-//ietf//dtd html 2.0 strict level 1//',iRh='-//ietf//dtd html 2.0 strict level 2//',tRh='-//ietf//dtd html 2.0 strict//',ERh='-//ietf//dtd html 2.0//',jSh='-//ietf//dtd html 2.1e//',uSh='-//ietf//dtd html 3.0//',FSh='-//ietf//dtd html 3.2 final//',kTh='-//ietf//dtd html 3.2//',vTh='-//ietf//dtd html 3//',bUh='-//ietf//dtd html level 0//',mUh='-//ietf//dtd html level 1//',xUh='-//ietf//dtd html level 2//',cVh='-//ietf//dtd html level 3//',nVh='-//ietf//dtd html strict level 0//',yVh='-//ietf//dtd html strict level 1//',dWh='-//ietf//dtd html strict level 2//',oWh='-//ietf//dtd html strict level 3//',zWh='-//ietf//dtd html strict//',eXh='-//ietf//dtd html//',qXh='-//metrius//dtd metrius presentational//',BXh='-//microsoft//dtd internet explorer 2.0 html strict//',gYh='-//microsoft//dtd internet explorer 2.0 html//',rYh='-//microsoft//dtd internet explorer 2.0 tables//',CYh='-//microsoft//dtd internet explorer 3.0 html strict//',hZh='-//microsoft//dtd internet explorer 3.0 html//',sZh='-//microsoft//dtd internet explorer 3.0 tables//',DZh='-//netscape comm. corp.//dtd html//',i0h='-//netscape comm. corp.//dtd strict html//',t0h="-//o'reilly and associates//dtd html 2.0//",F0h="-//o'reilly and associates//dtd html extended 1.0//",k1h="-//o'reilly and associates//dtd html extended relaxed 1.0//",v1h='-//softquad software//dtd hotmetal pro 6.0::19990601::extensions to html 4.0//',a2h='-//softquad//dtd hotmetal pro 4.0::19971010::extensions to html 4.0//',l2h='-//spyglass//dtd html 2.0 extended//',w2h='-//sq//dtd html 2.0 hotmetal + extensions//',b3h='-//sun microsystems corp.//dtd hotjava html//',m3h='-//sun microsystems corp.//dtd hotjava strict html//',x3h='-//w3c//dtd html 3 1995-03-24//',c4h='-//w3c//dtd html 3.2 draft//',o4h='-//w3c//dtd html 3.2 final//',z4h='-//w3c//dtd html 3.2//',e5h='-//w3c//dtd html 3.2s draft//',p5h='-//w3c//dtd html 4.0 frameset//',A5h='-//w3c//dtd html 4.0 transitional//',Czg='-//w3c//dtd html 4.01 frameset//en',rzg='-//w3c//dtd html 4.01 transitional//en',f6h='-//w3c//dtd html experimental 19960712//',q6h='-//w3c//dtd html experimental 970421//',B6h='-//w3c//dtd w3 html//',gzg='-//w3c//dtd xhtml 1.0 frameset//en',Byg='-//w3c//dtd xhtml 1.0 transitional//en',g7h='-//w3o//dtd w3 html 3.0//',sAg='-//w3o//dtd w3 html strict 3.0//en//',r7h='-//webtechs//dtd mozilla html 2.0//',Cqg='-//webtechs//dtd mozilla html//',DAg='-/w3c/dtd html 4.0 transitional/en',Dxg='.',gyg='0123456789ABCDEF',iBg=':',Aqg=': ',q6g='=',zqg='@',txg='A character reference expanded to a form feed which is not legal XML 1.0 white space.',iyg='AElig',jyg='AElig;',wLh='ALLOW',fKh='ALMOST_STANDARDS_MODE',mMh='ALTER_INFOSET',kyg='AMP',lyg='AMP;',yzh='AUTO',myg='Aacute',nyg='Aacute;',oyg='Abreve;',DIh='AbstractCollection',rJh='AbstractHashMap',tJh='AbstractHashMap$EntrySet',uJh='AbstractHashMap$EntrySetIterator',wJh='AbstractHashMap$MapEntryNull',xJh='AbstractHashMap$MapEntryString',EIh='AbstractList',yJh='AbstractList$IteratorImpl',zJh='AbstractList$ListIteratorImpl',qJh='AbstractMap',vJh='AbstractMapEntry',BJh='AbstractSequentialList',sJh='AbstractSet',pyg='Acirc',ryg='Acirc;',syg='Acy;',ePg='Add not supported on this collection',obh='Add not supported on this list',tyg='Afr;',uyg='Agrave',vyg='Agrave;',wyg='Alpha;',xyg='Amacr;',yyg='And;',zyg='Aogon;',Ayg='Aopf;',Cyg='ApplyFunction;',Dyg='Aring',Eyg='Aring;',vLg='Array types must match',FIh='ArrayList',cJh='ArrayStoreException',Fyg='Ascr;',azg='Assign;',bzg='Atilde',czg='Atilde;',mxg='Attribute \u201C',vKh='AttributeName',uKh='AttributeName;',dzg='Auml',ezg='Auml;',fzg='Backslash;',hzg='Barv;',izg='Barwed;',jzg='Bcy;',kzg='Because;',lzg='Bernoullis;',mzg='Beta;',nzg='Bfr;',ozg='Bopf;',pzg='Breve;',mKh='BrowserTreeBuilder',nKh='BrowserTreeBuilder$ScriptHolder',qzg='Bscr;',szg='Bumpeq;',ixg='CDATA[',tzg='CHcy;',uzg='COPY',vzg='COPY;',wzg='Cacute;',Blh="Can't get element ",xxg="Can't use FATAL here.",xzg='Cap;',yzg='CapitalDifferentialD;',zzg='Cayleys;',Azg='Ccaron;',Bzg='Ccedil',Dzg='Ccedil;',Ezg='Ccirc;',Fzg='Cconint;',aAg='Cdot;',bAg='Cedilla;',cAg='CenterDot;',dAg='Cfr;',uxg='Character reference expands to a control character (',eAg='Chi;',fAg='CircleDot;',gAg='CircleMinus;',iAg='CirclePlus;',jAg='CircleTimes;',fJh='Class',gJh='ClassCastException',kAg='ClockwiseContourIntegral;',lAg='CloseCurlyDoubleQuote;',mAg='CloseCurlyQuote;',kKh='CoalescingTreeBuilder',nAg='Colon;',oAg='Colone;',CJh='Comparators$1',pAg='Congruent;',qAg='Conint;',rAg='ContourIntegral;',tAg='Copf;',uAg='Coproduct;',vAg='CounterClockwiseContourIntegral;',wAg='Cross;',xAg='Cscr;',yAg='Cup;',zAg='CupCap;',AAg='DD;',BAg='DDotrahd;',CAg='DJcy;',EAg='DScy;',FAg='DZcy;',aBg='Dagger;',bBg='Darr;',cBg='Dashv;',dBg='Dcaron;',eBg='Dcy;',fBg='Del;',gBg='Delta;',hBg='Dfr;',kBg='DiacriticalAcute;',lBg='DiacriticalDot;',mBg='DiacriticalDoubleAcute;',nBg='DiacriticalGrave;',oBg='DiacriticalTilde;',pBg='Diamond;',qBg='DifferentialD;',dKh='DoctypeExpectation',eKh='DocumentMode',rBg='Dopf;',sBg='Dot;',tBg='DotDot;',vBg='DotEqual;',wBg='DoubleContourIntegral;',xBg='DoubleDot;',yBg='DoubleDownArrow;',zBg='DoubleLeftArrow;',ABg='DoubleLeftRightArrow;',BBg='DoubleLeftTee;',CBg='DoubleLongLeftArrow;',DBg='DoubleLongLeftRightArrow;',EBg='DoubleLongRightArrow;',aCg='DoubleRightArrow;',bCg='DoubleRightTee;',cCg='DoubleUpArrow;',dCg='DoubleUpDownArrow;',eCg='DoubleVerticalBar;',fCg='DownArrow;',gCg='DownArrowBar;',hCg='DownArrowUpArrow;',iCg='DownBreve;',jCg='DownLeftRightVector;',lCg='DownLeftTeeVector;',mCg='DownLeftVector;',nCg='DownLeftVectorBar;',oCg='DownRightTeeVector;',pCg='DownRightVector;',qCg='DownRightVectorBar;',rCg='DownTee;',sCg='DownTeeArrow;',tCg='Downarrow;',uCg='Dscr;',wCg='Dstrok;',qxg='Duplicate attribute \u201C',xCg='ENG;',yCg='ETH',zCg='ETH;',ACg='Eacute',BCg='Eacute;',CCg='Ecaron;',DCg='Ecirc',ECg='Ecirc;',FCg='Ecy;',bDg='Edot;',cDg='Efr;',dDg='Egrave',eDg='Egrave;',isg='Element name \u201C',fDg='Element;',xKh='ElementName',wKh='ElementName;',gDg='Emacr;',hDg='EmptySmallSquare;',iDg='EmptyVerySmallSquare;',AIh='Enum',jDg='Eogon;',kDg='Eopf;',mDg='Epsilon;',nDg='Equal;',oDg='EqualTilde;',pDg='Equilibrium;',zKh='ErrorReportingTokenizer',qDg='Escr;',rDg='Esim;',sDg='Eta;',tDg='Euml',uDg='Euml;',sIh='Exception',vDg='Exists;',xDg='ExponentialE;',bMh='FATAL',yDg='Fcy;',zDg='Ffr;',ADg='FilledSmallSquare;',BDg='FilledVerySmallSquare;',CDg='Fopf;',DDg='ForAll;',Cxg='Forbidden code point ',EDg='Fouriertrf;',FDg='Fscr;',aEg='GJcy;',cEg='GT',dEg='GT;',eEg='Gamma;',fEg='Gammad;',gEg='Gbreve;',hEg='Gcedil;',iEg='Gcirc;',jEg='Gcy;',kEg='Gdot;',lEg='Gfr;',nEg='Gg;',oEg='Gopf;',pEg='GreaterEqual;',qEg='GreaterEqualLess;',rEg='GreaterFullEqual;',sEg='GreaterGreater;',tEg='GreaterLess;',uEg='GreaterSlantEqual;',vEg='GreaterTilde;',wEg='Gscr;',zEg='Gt;',AEg='HARDcy;',kph='HTML',jwh='HTML401_STRICT',zsh='HTML401_TRANSITIONAL',BEg='Hacek;',DJh='HashMap',CEg='Hat;',DEg='Hcirc;',EEg='Hfr;',FEg='HilbertSpace;',aFg='Hopf;',bFg='HorizontalLine;',cFg='Hscr;',eFg='Hstrok;',AKh='HtmlAttributes',oKh='HtmlParser',pKh='HtmlParser$1',fFg='HumpDownHump;',gFg='HumpEqual;',hFg='IEcy;',iFg='IJlig;',jFg='IOcy;',kFg='Iacute',lFg='Iacute;',mFg='Icirc',nFg='Icirc;',pFg='Icy;',qFg='Idot;',rFg='Ifr;',sFg='Igrave',tFg='Igrave;',hJh='IllegalArgumentException',uFg='Im;',vFg='Imacr;',wFg='ImaginaryI;',xFg='Implies;',Deh='Index: ',bJh='IndexOutOfBoundsException',yFg='Int;',AFg='Integral;',BFg='Intersection;',CFg='InvisibleComma;',DFg='InvisibleTimes;',EFg='Iogon;',FFg='Iopf;',aGg='Iota;',bGg='Iscr;',cGg='Itilde;',dGg='Iukcy;',fGg='Iuml',gGg='Iuml;',vIh='JavaScriptException',wIh='JavaScriptObject$',hGg='Jcirc;',iGg='Jcy;',jGg='Jfr;',kGg='Jopf;',lGg='Jscr;',mGg='Jsercy;',nGg='Jukcy;',oGg='KHcy;',qGg='KJcy;',rGg='Kappa;',sGg='Kcedil;',tGg='Kcy;',uGg='Kfr;',vGg='Kopf;',wGg='Kscr;',xGg='LJcy;',yGg='LT',zGg='LT;',BGg='Lacute;',CGg='Lambda;',DGg='Lang;',EGg='Laplacetrf;',FGg='Larr;',aHg='Lcaron;',bHg='Lcedil;',cHg='Lcy;',dHg='LeftAngleBracket;',eHg='LeftArrow;',gHg='LeftArrowBar;',hHg='LeftArrowRightArrow;',iHg='LeftCeiling;',jHg='LeftDoubleBracket;',kHg='LeftDownTeeVector;',lHg='LeftDownVector;',mHg='LeftDownVectorBar;',nHg='LeftFloor;',oHg='LeftRightArrow;',pHg='LeftRightVector;',rHg='LeftTee;',sHg='LeftTeeArrow;',tHg='LeftTeeVector;',uHg='LeftTriangle;',vHg='LeftTriangleBar;',wHg='LeftTriangleEqual;',xHg='LeftUpDownVector;',yHg='LeftUpTeeVector;',zHg='LeftUpVector;',AHg='LeftUpVectorBar;',CHg='LeftVector;',DHg='LeftVectorBar;',EHg='Leftarrow;',FHg='Leftrightarrow;',aIg='LessEqualGreater;',bIg='LessFullEqual;',cIg='LessGreater;',dIg='LessLess;',eIg='LessSlantEqual;',fIg='LessTilde;',iIg='Lfr;',EJh='LinkedList',FJh='LinkedList$ListIteratorImpl',aKh='LinkedList$Node',jIg='Ll;',kIg='Lleftarrow;',lIg='Lmidot;',BKh='LocatorImpl',mIg='LongLeftArrow;',nIg='LongLeftRightArrow;',oIg='LongRightArrow;',pIg='Longleftarrow;',qIg='Longleftrightarrow;',rIg='Longrightarrow;',tIg='Lopf;',uIg='LowerLeftArrow;',vIg='LowerRightArrow;',wIg='Lscr;',xIg='Lsh;',yIg='Lstrok;',zIg='Lt;',AIg='Map;',BIg='Mcy;',CIg='MediumSpace;',EIg='Mellintrf;',FIg='Mfr;',aJg='MinusPlus;',bJg='Mopf;',cJg='Mscr;',dJg='Mu;',gIg='Must be array types',eJg='NJcy;',hDh='NO_DOCTYPE_ERRORS',fJg='Nacute;',gJg='Ncaron;',hJg='Ncedil;',jJg='Ncy;',kJg='NegativeMediumSpace;',lJg='NegativeThickSpace;',mJg='NegativeThinSpace;',nJg='NegativeVeryThinSpace;',oJg='NestedGreaterGreater;',pJg='NestedLessLess;',qJg='NewLine;',rJg='Nfr;',sxg='No digits after \u201C',sJg='NoBreak;',bKh='NoSuchElementException',uJg='NonBreakingSpace;',vJg='Nopf;',wJg='Not;',xJg='NotCongruent;',yJg='NotCupCap;',zJg='NotDoubleVerticalBar;',AJg='NotElement;',BJg='NotEqual;',CJg='NotExists;',DJg='NotGreater;',FJg='NotGreaterEqual;',aKg='NotGreaterLess;',bKg='NotGreaterTilde;',cKg='NotLeftTriangle;',dKg='NotLeftTriangleEqual;',eKg='NotLess;',fKg='NotLessEqual;',gKg='NotLessGreater;',hKg='NotLessTilde;',iKg='NotPrecedes;',kKg='NotPrecedesSlantEqual;',lKg='NotReverseElement;',mKg='NotRightTriangle;',nKg='NotRightTriangleEqual;',oKg='NotSquareSubsetEqual;',pKg='NotSquareSupersetEqual;',qKg='NotSubsetEqual;',rKg='NotSucceeds;',sKg='NotSucceedsSlantEqual;',tKg='NotSupersetEqual;',vKg='NotTilde;',wKg='NotTildeEqual;',xKg='NotTildeFullEqual;',yKg='NotTildeTilde;',zKg='NotVerticalBar;',AKg='Nscr;',BKg='Ntilde',CKg='Ntilde;',DKg='Nu;',jJh='NullPointerException',EKg='OElig;',aLg='Oacute',bLg='Oacute;',nIh='Object',oJh='Object;',cLg='Ocirc',dLg='Ocirc;',eLg='Ocy;',fLg='Odblac;',gLg='Ofr;',hLg='Ograve',iLg='Ograve;',jLg='Omacr;',lLg='Omega;',mLg='Omicron;',nLg='Oopf;',oLg='OpenCurlyDoubleQuote;',pLg='OpenCurlyQuote;',qLg='Or;',rLg='Oscr;',sLg='Oslash',tLg='Oslash;',uLg='Otilde',xLg='Otilde;',yLg='Otimes;',zLg='Ouml',ALg='Ouml;',BLg='OverBar;',CLg='OverBrace;',DLg='OverBracket;',ELg='OverParenthesis;',qKh='ParseEndListener',FLg='PartialD;',aMg='Pcy;',cMg='Pfr;',dMg='Phi;',eMg='Pi;',fMg='PlusMinus;',gMg='Poincareplane;',hMg='Popf;',iMg='Pr;',jMg='Precedes;',kMg='PrecedesEqual;',lMg='PrecedesSlantEqual;',nMg='PrecedesTilde;',oMg='Prime;',pMg='Product;',qMg='Proportion;',rMg='Proportional;',sMg='Pscr;',tMg='Psi;',lLh='QUIRKS_MODE',uMg='QUOT',vMg='QUOT;',wMg='Qfr;',yMg='Qopf;',zMg='Qscr;',AMg='RBarr;',BMg='REG',CMg='REG;',DMg='Racute;',EMg='Rang;',FMg='Rarr;',aNg='Rarrtl;',bNg='Rcaron;',dNg='Rcedil;',eNg='Rcy;',fNg='Re;',gNg='ReverseElement;',hNg='ReverseEquilibrium;',iNg='ReverseUpEquilibrium;',jNg='Rfr;',kNg='Rho;',lNg='RightAngleBracket;',mNg='RightArrow;',oNg='RightArrowBar;',pNg='RightArrowLeftArrow;',qNg='RightCeiling;',rNg='RightDoubleBracket;',sNg='RightDownTeeVector;',tNg='RightDownVector;',uNg='RightDownVectorBar;',vNg='RightFloor;',wNg='RightTee;',xNg='RightTeeArrow;',zNg='RightTeeVector;',ANg='RightTriangle;',BNg='RightTriangleBar;',CNg='RightTriangleEqual;',DNg='RightUpDownVector;',ENg='RightUpTeeVector;',FNg='RightUpVector;',aOg='RightUpVectorBar;',bOg='RightVector;',cOg='RightVectorBar;',eOg='Rightarrow;',fOg='Ropf;',gOg='RoundImplies;',hOg='Rrightarrow;',iOg='Rscr;',jOg='Rsh;',kOg='RuleDelayed;',tIh='RuntimeException',cLh='SAXException',dLh='SAXParseException',lOg='SHCHcy;',mOg='SHcy;',nOg='SOFTcy;',wGh='STANDARDS_MODE',pOg='Sacute;',dyg='Saw an xmlns attribute.',qOg='Sc;',rOg='Scaron;',sOg='Scedil;',tOg='Scirc;',uOg='Scy;',vOg='Sfr;',wOg='ShortDownArrow;',xOg='ShortLeftArrow;',yOg='ShortRightArrow;',AOg='ShortUpArrow;',BOg='Sigma;',COg='SmallCircle;',DOg='Sopf;',EOg='Sqrt;',FOg='Square;',aPg='SquareIntersection;',bPg='SquareSubset;',cPg='SquareSubsetEqual;',dPg='SquareSuperset;',gPg='SquareSupersetEqual;',hPg='SquareUnion;',iPg='Sscr;',EKh='StackNode',FKh='StackNode;',jPg='Star;',aUh='String',xEg='String index out of range: ',yIh='String;',kJh='StringBuffer',lJh='StringBuilder',mJh='StringIndexOutOfBoundsException',kPg='Sub;',lPg='Subset;',mPg='SubsetEqual;',nPg='Succeeds;',oPg='SucceedsEqual;',pPg='SucceedsSlantEqual;',rPg='SucceedsTilde;',sPg='SuchThat;',tPg='Sum;',uPg='Sup;',vPg='Superset;',wPg='SupersetEqual;',xPg='Supset;',yPg='THORN',zPg='THORN;',APg='TRADE;',CPg='TSHcy;',DPg='TScy;',EPg='Tab;',FPg='Tau;',aQg='Tcaron;',bQg='Tcedil;',cQg='Tcy;',dQg='Tfr;',wxg='The document is not mappable to XML 1.0 due to a trailing hyphen in a comment.',pxg='The document is not mappable to XML 1.0 due to two consecutive hyphens in a comment.',eQg='Therefore;',fQg='Theta;',hQg='ThinSpace;',yxg='This document is not mappable to XML 1.0 without data loss due to ',xMh='This is a searchable index. Insert your search keywords here: ',rIh='Throwable',iQg='Tilde;',jQg='TildeEqual;',kQg='TildeFullEqual;',lQg='TildeTilde;',qIh='Timer',aJh='Timer$1',yKh='Tokenizer',mQg='Topf;',jKh='TreeBuilder',nQg='TripleDot;',oQg='Tscr;',pQg='Tstrok;',hyg='U',byg='U+',ayg='U+0',Fxg='U+00',Exg='U+000',aLh='UTF16Buffer',qQg='Uacute',sQg='Uacute;',tQg='Uarr;',uQg='Uarrocir;',vQg='Ubrcy;',wQg='Ubreve;',xQg='Ucirc',yQg='Ucirc;',zQg='Ucy;',AQg='Udblac;',BQg='Ufr;',DQg='Ugrave',EQg='Ugrave;',FQg='Umacr;',aRg='UnderBar;',bRg='UnderBrace;',cRg='UnderBracket;',dRg='UnderParenthesis;',eRg='Union;',fRg='UnionPlus;',uKg='Unreachable',cyg='Unreachable.',nJh='UnsupportedOperationException',gRg='Uogon;',iRg='Uopf;',jRg='UpArrow;',kRg='UpArrowBar;',lRg='UpArrowDownArrow;',mRg='UpDownArrow;',nRg='UpEquilibrium;',oRg='UpTee;',pRg='UpTeeArrow;',qRg='Uparrow;',rRg='Updownarrow;',tRg='UpperLeftArrow;',uRg='UpperRightArrow;',vRg='Upsi;',wRg='Upsilon;',xRg='Uring;',yRg='Uscr;',zRg='Utilde;',ARg='Uuml',BRg='Uuml;',CRg='VDash;',ERg='Vbar;',FRg='Vcy;',aSg='Vdash;',bSg='Vdashl;',cSg='Vee;',dSg='Verbar;',eSg='Vert;',fSg='VerticalBar;',gSg='VerticalLine;',hSg='VerticalSeparator;',jSg='VerticalTilde;',kSg='VeryThinSpace;',lSg='Vfr;',mSg='Vopf;',nSg='Vscr;',oSg='Vvdash;',pSg='Wcirc;',qSg='Wedge;',rSg='Wfr;',sSg='Wopf;',vSg='Wscr;',wSg='Xfr;',xSg='Xi;',hKh='XmlViolationPolicy',ySg='Xopf;',zSg='Xscr;',ASg='YAcy;',BSg='YIcy;',CSg='YUcy;',DSg='Yacute',ESg='Yacute;',aTg='Ycirc;',bTg='Ycy;',cTg='Yfr;',dTg='Yopf;',eTg='Yscr;',fTg='Yuml;',gTg='ZHcy;',hTg='Zacute;',iTg='Zcaron;',jTg='Zcy;',lTg='Zdot;',mTg='ZeroWidthSpace;',nTg='Zeta;',oTg='Zfr;',pTg='Zopf;',qTg='Zscr;',tSg='[',dJh='[C',iJh='[I',xIh='[Ljava.lang.',tKh='[Lnu.validator.htmlparser.impl.',sKh='[Z',DKh='[[C',BIh='[[D',sZg=']',oFg='a',rTg='aacute',sTg='aacute;',C6g='abbr',bvg='about:legacy-compat',tTg='abreve;',C2h='abs',uTg='ac;',Cuh='accent',gWh='accent-height',wSh='accentunder',ruh='accept',DXh='accept-charset',cPh='accesskey',bRh='accumulate',wTg='acd;',xTg='acirc',yTg='acirc;',rrg='acronym',kwh='action',aRh='actiontype',svh='active',zXh='actuate',zTg='acute',ATg='acute;',BTg='acy;',hNh='additive',yEg='address',CTg='aelig',DTg='aelig;',ETg='af;',FTg='afr;',bUg='agrave',cUg='agrave;',dUg='alefsym;',eUg='aleph;',ojh='align',w0h='alignment-baseline',EXh='alignmentscope',djh='alink',fUg='alpha;',FQh='alphabetic',l2g='alt',atg='altGlyph',Fug='altGlyphDef',qvg='altGlyphItem',Fsg='altglyph',Eug='altglyphdef',pvg='altglyphitem',Dvh='altimg',hLh='alttext',gUg='amacr;',hUg='amalg;',iUg='amp',jUg='amp;',gPh='amplitude',A2h='and',kUg='and;',mUg='andand;',nUg='andd;',oUg='andslope;',pUg='andv;',qUg='ang;',rUg='ange;',sUg='angle;',tUg='angmsd;',uUg='angmsdaa;',vUg='angmsdab;',xUg='angmsdac;',yUg='angmsdad;',zUg='angmsdae;',AUg='angmsdaf;',BUg='angmsdag;',CUg='angmsdah;',DUg='angrt;',EUg='angrtvb;',FUg='angrtvbd;',aVg='angsph;',cVg='angst;',dVg='angzarr;',krg='animate',svg='animateColor',Evg='animateMotion',zwg='animateTransform',rvg='animatecolor',Dvg='animatemotion',xwg='animatetransform',aug='animation',sug='annotation',kwg='annotation-xml',eVg='aogon;',fVg='aopf;',gVg='ap;',hVg='apE;',iVg='apacir;',jVg='ape;',kVg='apid;',lVg='apos;',A6h='applet',w5h='apply',D6h='approx',nVg='approx;',oVg='approxeq;',BSh='arabic-form',z6h='arccos',prg='arccosh',C6h='arccot',qrg='arccoth',w6h='arccsc',mrg='arccsch',iLh='archive',CXh='arcrole',v6h='arcsec',lrg='arcsech',y6h='arcsin',org='arcsinh',x6h='arctan',nrg='arctanh',i4h='area',B2h='arg',h1h='aria-activedescendant',ySh='aria-atomic',e0h='aria-autocomplete',dPh='aria-busy',uUh='aria-channel',rUh='aria-checked',eWh='aria-controls',vWh='aria-datatype',iZh='aria-describedby',qWh='aria-disabled',xYh='aria-dropeffect',pWh='aria-expanded',ASh='aria-flowto',ePh='aria-grab',fWh='aria-haspopup',zSh='aria-hidden',pUh='aria-invalid',yYh='aria-labelledby',cRh='aria-level',hPh='aria-live',FXh='aria-multiline',f1h='aria-multiselectable',FOh='aria-owns',jWh='aria-posinset',qUh='aria-pressed',lWh='aria-readonly',iWh='aria-relevant',nWh='aria-required',xSh='aria-secret',mWh='aria-selected',tUh='aria-setsize',bPh='aria-sort',zYh='aria-templateid',kWh='aria-valuemax',wWh='aria-valuemin',hWh='aria-valuenow',pVg='aring',qVg='aring;',jrg='article',hvh='ascent',rVg='ascr;',u5h='aside',sVg='ast;',tVg='asymp;',uVg='asympeq;',yih='async',vVg='atilde',wVg='atilde;',uWh='attributeName',sWh='attributeType',tWh='attributename',rWh='attributetype',v5h='audio',yVg='auml',zVg='auml;',sUh='autocomplete',aPh='autofocus',gNh='autoplay',EQh='autosubmit',AVg='awconint;',BVg='awint;',r6g='axis',jLh='azimuth',t1h='b',CVg='bNot;',DVg='backcong;',EVg='backepsilon;',fRh='background',FVg='backprime;',aWg='backsim;',bWg='backsimeq;',eWg='barvee;',fWg='barwed;',gWg='barwedge;',u9g='base',yWh='baseFrequency',eTh='baseProfile',btg='basefont',xWh='basefrequency',pNh='baseline',aYh='baseline-shift',dTh='baseprofile',h7g='bbox',hWg='bbrk;',iWg='bbrktbrk;',jWg='bcong;',kWg='bcy;',E2h='bdo',lWg='bdquo;',mWg='becaus;',nWg='because;',flh='begin',pWg='bemptyv;',qWg='bepsi;',rWg='bernou;',sWg='beta;',tWg='beth;',uWg='between;',nNh='bevelled',vWg='bfr;',oLh='bgcolor',trg='bgsound',i8g='bias',D2h='big',wWg='bigcap;',xWg='bigcirc;',yWg='bigcup;',AWg='bigodot;',BWg='bigoplus;',CWg='bigotimes;',DWg='bigsqcup;',EWg='bigstar;',FWg='bigtriangledown;',aXg='bigtriangleup;',bXg='biguplus;',cXg='bigvee;',dXg='bigwedge;',fXg='bkarow;',gXg='blacklozenge;',hXg='blacksquare;',iXg='blacktriangle;',jXg='blacktriangledown;',kXg='blacktriangleleft;',lXg='blacktriangleright;',mXg='blank;',nXg='blk12;',oXg='blk14;',qXg='blk34;',rXg='block;',tug='blockquote',sXg='bnot;',lDg='body',tXg='bopf;',vwh='border',uXg='bot;',vXg='bottom;',wXg='bowtie;',xXg='boxDL;',yXg='boxDR;',zXg='boxDl;',BXg='boxDr;',CXg='boxH;',DXg='boxHD;',EXg='boxHU;',FXg='boxHd;',aYg='boxHu;',bYg='boxUL;',cYg='boxUR;',dYg='boxUl;',eYg='boxUr;',gYg='boxV;',hYg='boxVH;',iYg='boxVL;',jYg='boxVR;',kYg='boxVh;',lYg='boxVl;',mYg='boxVr;',nYg='boxbox;',oYg='boxdL;',pYg='boxdR;',rYg='boxdl;',sYg='boxdr;',tYg='boxh;',uYg='boxhD;',vYg='boxhU;',wYg='boxhd;',xYg='boxhu;',yYg='boxminus;',zYg='boxplus;',AYg='boxtimes;',CYg='boxuL;',DYg='boxuR;',EYg='boxul;',FYg='boxur;',aZg='boxv;',bZg='boxvH;',cZg='boxvL;',dZg='boxvR;',eZg='boxvh;',fZg='boxvl;',hZg='boxvr;',iZg='bprime;',z1h='br',jZg='breve;',kZg='brvbar',lZg='brvbar;',mZg='bscr;',nZg='bsemi;',oZg='bsim;',pZg='bsime;',qZg='bsol;',uZg='bsolb;',vZg='bull;',wZg='bullet;',xZg='bump;',yZg='bumpE;',zZg='bumpe;',AZg='bumpeq;',E6h='button',j4h='bvar',aUg='by',BZg='cacute;',jNh='calcMode',iNh='calcmode',b7h='canvas',eRh='cap-height',CZg='cap;',DZg='capand;',FZg='capbrcup;',a0g='capcap;',b0g='capcup;',c0g='capdot;',nwg='caption',k4h='card',d0g='caret;',e0g='caron;',Awg='cartesianproduct',f0g='ccaps;',g0g='ccaron;',h0g='ccedil',i0g='ccedil;',k0g='ccirc;',l0g='ccups;',m0g='ccupssm;',n0g='cdot;',o0g='cedil',p0g='cedil;',wrg='ceiling',CSh='cellpadding',DSh='cellspacing',q0g='cemptyv;',r0g='cent',s0g='cent;',a7h='center',t0g='centerdot;',v0g='cfr;',j9g='char',nLh='charoff',qLh='charset',w0g='chcy;',x0g='check;',mLh='checked',y0g='checkmark;',z0g='chi;',A1h='ci',A0g='cir;',B0g='cirE;',C0g='circ;',D0g='circeq;',F6h='circle',E0g='circlearrowleft;',a1g='circlearrowright;',b1g='circledR;',c1g='circledS;',d1g='circledast;',e1g='circledcirc;',f1g='circleddash;',g1g='cire;',h1g='cirfnint;',i1g='cirmid;',j1g='cirscir;',s7g='cite',pkh='class',zxg='class ',bMg='classid',Akh='clear',E8g='clip',jPh='clip-path',iPh='clip-rule',dtg='clipPath',DWh='clipPathUnits',ctg='clippath',CWh='clippathunits',zjh='close',kLh='closure',mMg='clsid:32F66A20-7614-11D4-BD11-00104BD3F987',dOg='clsid:AC159093-1683-4BA2-9DCF-0C350141D7F2',l1g='clubs;',m1g='clubsuit;',B1h='cn',D7g='code',lNh='codebase',kNh='codetype',etg='codomain',a3h='col',aDg='colgroup',n1g='colon;',o1g='colone;',p1g='coloneq;',ekh='color',D0h='color-interpolation',q1h='color-interpolation-filters',BWh='color-profile',AYh='color-rendering',t8g='cols',pLh='colspan',aTh='columnalign',bTh='columnlines',AWh='columnspacing',dRh='columnspan',ESh='columnwidth',uIh='com.google.gwt.core.client.',pIh='com.google.gwt.user.client.',q1g='comma;',urg='command',r1g='commat;',s1g='comp;',rLh='compact',t1g='compfn;',u1g='complement;',dug='complexes',w1g='complexes;',vrg='compose',cug='condition',x1g='cong;',y1g='congdot;',z1g='conint;',bug='conjugate',sLh='content',g0h='contentScriptType',kZh='contentStyleType',BYh='contenteditable',f0h='contentscripttype',jZh='contentstyletype',cTh='contextmenu',mNh='controls',lxh='coords',A1g='copf;',B1g='coprod;',C1g='copy',D1g='copy;',E1g='copysr;',c3h='cos',m4h='cosh',d3h='cot',p4h='coth',F1g='crarr;',b2g='cross;',F2h='csc',l4h='csch',c2g='cscr;',d2g='csub;',e2g='csube;',f2g='csup;',g2g='csupe;',xrg='csymbol',h2g='ctdot;',i2g='cudarrl;',j2g='cudarrr;',k2g='cuepr;',m2g='cuesc;',n2g='cularr;',o2g='cularrp;',p2g='cup;',q2g='cupbrcap;',r2g='cupcap;',s2g='cupcup;',t2g='cupdot;',u2g='cupor;',v2g='curarr;',x2g='curarrm;',q4h='curl',y2g='curlyeqprec;',z2g='curlyeqsucc;',A2g='curlyvee;',B2g='curlywedge;',C2g='curren',D2g='curren;',axh='cursor',E2g='curvearrowleft;',F2g='curvearrowright;',a3g='cuvee;',d3g='cuwed;',e3g='cwconint;',f3g='cwint;',lUg='cx',wUg='cy',g3g='cylcty;',DRg='d',h3g='dArr;',i3g='dHar;',j3g='dagger;',k3g='daleth;',l3g='darr;',m3g='dash;',o3g='dashv;',l$g='data',vLh='datafld',yUh='dataformatas',ftg='datagrid',uLh='datasrc',tvg='datatemplate',wNh='datetime',p3g='dbkarow;',q3g='dblac;',r3g='dcaron;',s3g='dcy;',C1h='dd',t3g='dd;',u3g='ddagger;',v3g='ddarr;',w3g='ddotseq;',xLh='declare',ALh='default',Clh='defer',lwg='definition-src',FWh='definitionURL',EWh='definitionurl',t4h='defs',x3g='deg',z3g='deg;',d7h='degree',e3h='del',A3g='delta;',B3g='demptyv;',qlh='depth',r4h='desc',BLh='descent',zrg='details',avg='determinant',C3g='dfisht;',f3h='dfn',D3g='dfr;',E3g='dharl;',F3g='dharr;',e7h='dialog',a4g='diam;',b4g='diamond;',c4g='diamondsuit;',e4g='diams;',f4g='die;',s4h='diff',EYh='diffuseConstant',DYh='diffuseconstant',g4g='digamma;',w2g='dir',mPh='direction',xNh='disabled',yrg='discard',h4g='disin;',yLh='display',wUh='displaystyle',dFg='div',i4g='div;',uug='divergence',c7h='divide',j4g='divide;',k4g='divideontimes;',zLh='divisor',l4g='divonx;',m4g='djcy;',D1h='dl',n4g='dlcorn;',p4g='dlcrop;',q4g='dollar;',f7h='domain',fxg='domainofapplication',j0h='dominant-baseline',r4g='dopf;',s4g='dot;',t4g='doteq;',u4g='doteqdot;',v4g='dotminus;',w4g='dotplus;',x4g='dotsquare;',y4g='doublebarwedge;',A4g='downarrow;',B4g='downdownarrows;',C4g='downharpoonleft;',D4g='downharpoonright;',nPh='draggable',E4g='drbkarow;',F4g='drcorn;',a5g='drcrop;',b5g='dscr;',c5g='dscy;',d5g='dsol;',f5g='dstrok;',E1h='dt',g5g='dtdot;',h5g='dtri;',i5g='dtrif;',j5g='duarr;',k5g='duhar;',c3g='dur',l5g='dwangle;',bVg='dx',mVg='dy',m5g='dzcy;',n5g='dzigrarr;',o5g='eDDot;',q5g='eDot;',r5g='eacute',s5g='eacute;',t5g='easter;',u5g='ecaron;',v5g='ecir;',w5g='ecirc',x5g='ecirc;',y5g='ecolon;',z5g='ecy;',a$g='edge',sNh='edgeMode',rNh='edgemode',B5g='edot;',C5g='ee;',D5g='efDot;',E5g='efr;',F5g='eg;',a6g='egrave',b6g='egrave;',c6g='egs;',d6g='egsdot;',e6g='el;',lPh='elevation',g6g='elinters;',h6g='ell;',Arg='ellipse',i6g='els;',j6g='elsdot;',F1h='em',k6g='emacr;',x5h='embed',l6g='empty;',gtg='emptyset',m6g='emptyset;',n6g='emptyv;',o6g='emsp13;',p6g='emsp14;',s6g='emsp;',h0h='enable-background',tNh='encoding',tLh='enctype',n3g='end',t6g='eng;',u6g='ensp;',v6g='eogon;',w6g='eopf;',x6g='epar;',y6g='eparsl;',z6g='eplus;',A6g='epsi;',B6g='epsilon;',D6g='epsiv;',b2h='eq',E6g='eqcirc;',F6g='eqcolon;',a7g='eqsim;',b7g='eqslantgtr;',c7g='eqslantless;',vUh='equalcolumns',kPh='equalrows',d7g='equals;',e7g='equest;',f7g='equiv;',g7g='equivDD;',xug='equivalent',i7g='eqvparsl;',j7g='erDot;',k7g='erarr;',l7g='escr;',m7g='esdot;',n7g='esim;',o7g='eta;',p7g='eth',q7g='eth;',vug='eulergamma',r7g='euml',t7g='euml;',u7g='euro;',cvg='eventsource',v7g='excl;',w7g='exist;',h7h='exists',g3h='exp',x7g='expectation;',qNh='exponent',uvg='exponentiale',y7g='exponentiale;',o1h='externalResourcesRequired',n1h='externalresourcesrequired',m_g='face',fug='factorial',htg='factorof',z7g='fallingdotseq;',y5h='false',A7g='fcy;',bsg='feBlend',fwg='feColorMatrix',hxg='feComponentTransfer',gvg='feComposite',Dwg='feConvolveMatrix',Fwg='feDiffuseLighting',bxg='feDisplacementMap',rwg='feDistantLight',dsg='feFlood',Crg='feFuncA',Frg='feFuncB',ksg='feFuncG',msg='feFuncR',pwg='feGaussianBlur',fsg='feImage',hsg='feMerge',evg='feMergeNode',Bvg='feMorphology',ltg='feOffset',zvg='fePointLight',exg='feSpecularLighting',ivg='feSpotLight',j7h='feTile',wvg='feTurbulence',asg='feblend',ewg='fecolormatrix',gxg='fecomponenttransfer',fvg='fecomposite',Cwg='feconvolvematrix',Ewg='fediffuselighting',axg='fedisplacementmap',qwg='fedistantlight',csg='feflood',Brg='fefunca',Erg='fefuncb',jsg='fefuncg',lsg='fefuncr',owg='fegaussianblur',esg='feimage',B7g='female;',gsg='femerge',dvg='femergenode',Avg='femorphology',hmh='fence',ktg='feoffset',yvg='fepointlight',cxg='fespecularlighting',hvg='fespotlight',i7h='fetile',vvg='feturbulence',C7g='ffilig;',E7g='fflig;',F7g='ffllig;',a8g='ffr;',itg='fieldset',k7h='figure',b8g='filig;',w$g='fill',zUh='fill-opacity',rPh='fill-rule',wxh='filter',pPh='filterRes',iTh='filterUnits',oPh='filterres',hTh='filterunits',c8g='flat;',d8g='fllig;',jTh='flood-color',cXh='flood-opacity',z5h='floor',e8g='fltns;',c2h='fn',f8g='fnof;',u4h='font',eug='font-face',Bwg='font-face-format',mwg='font-face-name',Fvg='font-face-src',awg='font-face-uri',fTh='font-family',tPh='font-size',lZh='font-size-adjust',BUh='font-stretch',lRh='font-style',AUh='font-variant',lTh='font-weight',jRh='fontfamily',yNh='fontsize',sPh='fontstyle',kRh='fontweight',m7h='footer',g8g='fopf;',y3g='for',l7h='forall',h8g='forall;',dwg='foreignObject',bwg='foreignobject',j8g='fork;',k8g='forkv;',srg='form',byh='format',l8g='fpartint;',m8g='frac12',n8g='frac12;',o8g='frac13;',p8g='frac14',q8g='frac14;',r8g='frac15;',s8g='frac16;',u8g='frac18;',v8g='frac23;',w8g='frac25;',x8g='frac34',y8g='frac34;',z8g='frac35;',A8g='frac38;',B8g='frac45;',C8g='frac56;',D8g='frac58;',F8g='frac78;',smh='frame',gTh='frameborder',Axg='frameset',CUh='framespacing',a9g='frasl;',b_g='from',b9g='frown;',c9g='fscr;',oWg='fx',zWg='fy',u1h='g',dWg='g1',xVg='g2',d9g='gE;',e9g='gEl;',f9g='gacute;',g9g='gamma;',h9g='gammad;',i9g='gap;',k9g='gbreve;',h3h='gcd',l9g='gcirc;',m9g='gcy;',n9g='gdot;',o9g='ge;',p9g='gel;',i3h='geq',q9g='geq;',r9g='geqq;',s9g='geqslant;',t9g='ges;',v9g='gescc;',w9g='gesdot;',x9g='gesdoto;',y9g='gesdotol;',z9g='gesles;',A9g='gfr;',B9g='gg;',C9g='ggg;',D9g='gimel;',E9g='gjcy;',b$g='gl;',c$g='glE;',d$g='gla;',e$g='glj;',B5h='glyph',gRh='glyph-name',r1h='glyph-orientation-horizontal',p1h='glyph-orientation-vertical',vNh='glyphRef',uNh='glyphref',f$g='gnE;',g$g='gnap;',h$g='gnapprox;',i$g='gne;',j$g='gneq;',k$g='gneqq;',m$g='gnsim;',n$g='gopf;',v4h='grad',l0h='gradientTransform',bXh='gradientUnits',k0h='gradienttransform',aXh='gradientunits',o$g='grave;',hRh='groupalign',p$g='gscr;',q$g='gsim;',r$g='gsime;',s$g='gsiml;',j2h='gt',t$g='gt;',u$g='gtcc;',v$g='gtcir;',x$g='gtdot;',y$g='gtlPar;',z$g='gtquest;',A$g='gtrapprox;',B$g='gtrarr;',C$g='gtrdot;',D$g='gtreqless;',E$g='gtreqqless;',F$g='gtrless;',a_g='gtrsim;',d2h='h1',e2h='h2',f2h='h3',g2h='h4',h2h='h5',i2h='h6',c_g='hArr;',d_g='hairsp;',e_g='half;',f_g='hamilt;',nsg='handler',DLh='hanging',g_g='hardcy;',h_g='harr;',i_g='harrcir;',j_g='harrw;',k_g='hbar;',l_g='hcirc;',Drg='head',n7h='header',ELh='headers',n_g='hearts;',o_g='heartsuit;',xyh='height',p_g='hellip;',q_g='hercon;',r_g='hfr;',mEg='hidden',wPh='hidefocus',x_g='high',C5h='hkern',s_g='hksearow;',t_g='hkswarow;',u_g='hoarr;',v_g='homtht;',w_g='hookleftarrow;',y_g='hookrightarrow;',z_g='hopf;',A_g='horbar;',mTh='horiz-adv-x',bYh='horiz-origin-x',cYh='horiz-origin-y',k2h='hr',cah='href',DNh='hreflang',B_g='hscr;',C_g='hslash;',myh='hspace',D_g='hstrok;',hAg='html',oRh='http-equiv',jKg='http://n.validator.nu/placeholder/',jBg='http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd',wDg='http://www.w3.org/1998/Math/MathML',hrg='http://www.w3.org/1999/xhtml',rQg='http://www.w3.org/1999/xlink',bEg='http://www.w3.org/2000/svg',BPg='http://www.w3.org/2000/xmlns/',Esg='http://www.w3.org/TR/REC-html40/strict.dtd',mvg='http://www.w3.org/TR/html4/loose.dtd',jtg='http://www.w3.org/TR/html4/strict.dtd',Ftg='http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd',wug='http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd',gQg='http://www.w3.org/XML/1998/namespace',E_g='hybull;',F_g='hyphen;',w1h='i',aah='iacute',bah='iacute;',dah='ic;',eah='icirc',fah='icirc;',yah='icon',gah='icy;',kLg='id',E5h='ident',tTh='ideographic',hah='iecy;',iah='iexcl',jah='iexcl;',kah='iff;',lah='ifr;',DIg='iframe',mah='igrave',oah='igrave;',pah='ii;',qah='iiiint;',rah='iiint;',sah='iinfin;',tah='iiota;',uah='ijlig;',vah='imacr;',D5h='image',bZh='image-rendering',wah='image;',hug='imaginary',yug='imaginaryi',xah='imagline;',zah='imagpart;',Aah='imath;',j3h='img',Bah='imof;',Cah='imped;',psg='implies',qYg='in',d4g='in2',Dah='in;',Eah='incare;',tnh='index',Fah='infin;',otg='infinity',abh='infintie;',bbh='inodot;',pGg='input',aQh='inputmode',k3h='ins',l3h='int',cbh='int;',ebh='intcal;',ntg='integers',fbh='integers;',gbh='intercal;',yPh='intercept',kug='interface ',gug='intersect',mtg='interval',hbh='intlarhk;',ibh='intprod;',osg='inverse',jbh='iocy;',kbh='iogon;',lbh='iopf;',mbh='iota;',nbh='iprod;',qbh='iquest',rbh='iquest;',rRh='irrelevant',sbh='iscr;',tbh='isin;',ubh='isinE;',eGg='isindex',vbh='isindot;',wbh='isins;',xbh='isinsv;',ybh='isinv;',Dmh='ismap',zbh='it;',Bbh='itilde;',Cbh='iukcy;',Dbh='iuml',Ebh='iuml;',mIh='java.lang.',CIh='java.util.',Fbh='jcirc;',ach='jcy;',bch='jfr;',cch='jmath;',dch='jopf;',ech='jscr;',gch='jsercy;',hch='jukcy;',iSg='k',fYg='k1',pXg='k2',AXg='k3',eXg='k4',ich='kappa;',jch='kappav;',n3h='kbd',kch='kcedil;',lch='kcy;',EUh='kernelMatrix',nZh='kernelUnitLength',DUh='kernelmatrix',mZh='kernelunitlength',CLh='kerning',vPh='keyPoints',nRh='keySplines',BNh='keyTimes',o7h='keygen',uPh='keypoints',mRh='keysplines',ANh='keytimes',mch='kfr;',nch='kgreen;',och='khcy;',pch='kjcy;',rch='kopf;',sch='kscr;',tch='lAarr;',uch='lArr;',vch='lAtail;',wch='lBarr;',xch='lE;',ych='lEg;',zch='lHar;',wph='label',Ach='lacute;',Cch='laemptyv;',Dch='lagran;',p7h='lambda',Ech='lambda;',fch='lang',Fch='lang;',adh='langd;',bdh='langle;',rOh='language',cdh='lap;',iug='laplacian',ddh='laquo',edh='laquo;',rMh='largeop',fdh='larr;',hdh='larrb;',idh='larrbfs;',jdh='larrfs;',kdh='larrhk;',ldh='larrlp;',mdh='larrpl;',ndh='larrsim;',odh='larrtl;',pdh='lat;',qdh='latail;',sdh='late;',tdh='lbarr;',udh='lbbrk;',vdh='lbrace;',wdh='lbrack;',xdh='lbrke;',ydh='lbrksld;',zdh='lbrkslu;',Adh='lcaron;',Bdh='lcedil;',Ddh='lceil;',p3h='lcm',Edh='lcub;',Fdh='lcy;',aeh='ldca;',beh='ldquo;',ceh='ldquor;',deh='ldrdhar;',eeh='ldrushar;',feh='ldsh;',geh='le;',ieh='leftarrow;',jeh='leftarrowtail;',keh='leftharpoondown;',leh='leftharpoonup;',meh='leftleftarrows;',neh='leftrightarrow;',oeh='leftrightarrows;',peh='leftrightharpoons;',qeh='leftrightsquigarrow;',reh='leftthreetimes;',teh='leg;',q7h='legend',qVh='lengthAdjust',pVh='lengthadjust',q3h='leq',ueh='leq;',veh='leqq;',weh='leqslant;',xeh='les;',yeh='lescc;',zeh='lesdot;',Aeh='lesdoto;',Beh='lesdotor;',Ceh='lesges;',Feh='lessapprox;',afh='lessdot;',bfh='lesseqgtr;',cfh='lesseqqgtr;',dfh='lessgtr;',efh='lesssim;',jYh='letter-spacing',ffh='lfisht;',gfh='lfloor;',hfh='lfr;',ifh='lg;',kfh='lgE;',lfh='lhard;',mfh='lharu;',nfh='lharul;',ofh='lhblk;',m2h='li',kYh='lighting-color',F5h='limit',r0h='limitingConeAngle',q0h='limitingconeangle',w4h='line',twg='linearGradient',swg='lineargradient',hQh='linebreak',mXh='linethickness',Abh='link',qch='list',ptg='listener',rsg='listing',pfh='ljcy;',qfh='ll;',rfh='llarr;',sfh='llcorner;',tfh='llhard;',vfh='lltri;',wfh='lmidot;',xfh='lmoust;',yfh='lmoustache;',n2h='ln',zfh='lnE;',Afh='lnap;',Bfh='lnapprox;',Cfh='lne;',Dfh='lneq;',Efh='lneqq;',agh='lnsim;',bgh='loang;',cgh='loarr;',dgh='lobrk;',bqh='local',o3h='log',qsg='logbase',qOh='longdesc',egh='longleftarrow;',fgh='longleftrightarrow;',ggh='longmapsto;',hgh='longrightarrow;',igh='looparrowleft;',jgh='looparrowright;',qMh='loopend',iQh='loopstart',lgh='lopar;',mgh='lopf;',ngh='loplus;',ogh='lotimes;',e5g='low',pgh='lowast;',qgh='lowbar;',qtg='lowlimit',uEh='lowsrc',rgh='loz;',sgh='lozenge;',tgh='lozf;',ugh='lpar;',wgh='lparlt;',kFh='lquote',xgh='lrarr;',ygh='lrcorner;',zgh='lrhar;',Agh='lrhard;',Bgh='lrm;',Cgh='lrtri;',Dgh='lsaquo;',Egh='lscr;',Fgh='lsh;',bhh='lsim;',chh='lsime;',dhh='lsimg;',FEh='lspace',ehh='lsqb;',fhh='lsquo;',ghh='lsquor;',hhh='lstrok;',o2h='lt',ihh='lt;',jhh='ltcc;',khh='ltcir;',mhh='ltdot;',nhh='lthree;',ohh='ltimes;',phh='ltlarr;',qhh='ltquest;',rhh='ltrPar;',shh='ltri;',thh='ltrie;',uhh='ltrif;',vhh='lurdshar;',xhh='luruhar;',xMg='m',nNg='m:',yhh='mDDot;',zhh='macr',Ahh='macr;',EDh='macros',wsg='maction',Bhh='male;',jvg='maligngroup',zug='malignmark',Chh='malt;',Dhh='maltese;',mOh='manifest',s3h='map',Ehh='map;',Fhh='mapsto;',aih='mapstodown;',cih='mapstoleft;',dih='mapstoup;',jVh='marginheight',CTh='marginwidth',B4h='mark',y7h='marker',DRh='marker-end',CRh='marker-mid',mVh='marker-start',eih='marker;',lVh='markerHeight',ATh='markerUnits',ETh='markerWidth',kVh='markerheight',zTh='markerunits',DTh='markerwidth',vsg='marquee',pbh='mask',tZh='maskContentUnits',eQh='maskUnits',rZh='maskcontentunits',dQh='maskunits',A4h='math',iYh='mathbackground',cQh='mathcolor',oVh='mathematical',wLg='mathplayer',nOh='mathsize',BTh='mathvariant',B7h='matrix',jug='matrixrow',o4g='max',fQh='maxlength',pMh='maxsize',fih='mcomma;',gih='mcy;',hih='mdash;',C4h='mean',iih='measuredangle;',lph='media',w7h='median',cZh='mediummathspace',stg='menclose',E4h='menu',z7h='merror',E0h='message',x4h='meta',rtg='metadata',c6h='meter',jEh='method',ssg='mfenced',jih='mfr;',a6h='mfrac',v7h='mglyph',kih='mho;',p2h='mi',lih='micro',oih='micro;',pih='mid;',qih='midast;',rih='midcir;',sih='middot',tih='middot;',z4g='min',oMh='minsize',e6h='minus',uih='minus;',vih='minusb;',wih='minusd;',xih='minusdu;',gwg='missing-glyph',Bug='mlabeledtr',zih='mlcp;',Aih='mldr;',hwg='mmultiscripts',q2h='mn',Bih='mnplus;',r2h='mo',dbh='mode',Cih='models;',jIh='moduleStartup',A7h='moment',lvg='momentabout',Dih='mopf;',lXh='movablelimits',d6h='mover',Eih='mp;',usg='mpadded',b6h='mpath',ttg='mphantom',kvg='mprescripts',g6h='mroot',F4h='mrow',s2h='ms',Fih='mscr;',s7h='mspace',h6h='msqrt',ajh='mstpos;',u7h='mstyle',y4h='msub',xsg='msubsup',D4h='msup',t7h='mtable',r3h='mtd',i6h='mtext',t3h='mtr',bjh='mu;',cjh='multimap;',oOh='multiple',ejh='mumap;',x7h='munder',Aug='munderover',Bqg='must be positive',fjh='nLeftarrow;',gjh='nLeftrightarrow;',hjh='nRightarrow;',ijh='nVDash;',jjh='nVdash;',kjh='nabla;',ljh='nacute;',pXh='name',mjh='nap;',njh='napos;',pjh='napprox;',Foh='nargs',qjh='natur;',rjh='natural;',uwg='naturalnumbers',sjh='naturals;',w3h='nav',tjh='nbsp',ujh='nbsp;',vjh='ncap;',wjh='ncaron;',xjh='ncedil;',yjh='ncong;',Ajh='ncup;',Bjh='ncy;',Cjh='ndash;',Djh='ne;',Ejh='neArr;',Fjh='nearhk;',akh='nearr;',bkh='nearrow;',u3h='neq',ckh='nequiv;',dkh='nesear;',b5h='nest',fkh='nexist;',gkh='nexists;',hkh='nfr;',ikh='nge;',jkh='ngeq;',kkh='ngsim;',lkh='ngt;',mkh='ngtr;',nkh='nhArr;',okh='nharr;',qkh='nhpar;',rkh='ni;',skh='nis;',tkh='nisd;',ukh='niv;',vkh='njcy;',wkh='nlArr;',xkh='nlarr;',ykh='nldr;',zkh='nle;',Bkh='nleftarrow;',Ckh='nleftrightarrow;',Dkh='nleq;',Ekh='nless;',Fkh='nlsim;',alh='nlt;',blh='nltri;',clh='nltrie;',dlh='nmid;',zFg='nobr',iJg='noembed',tJg='noframes',tDh='nohref',a5h='none',elh='nopf;',lOh='noresize',vtg='noscript',nMh='noshade',v3h='not',glh='not;',Cug='notanumber',kOh='notation',j6h='notin',hlh='notin;',ilh='notinva;',jlh='notinvb;',klh='notinvc;',llh='notni;',mlh='notniva;',nlh='notnivb;',olh='notnivc;',nvg='notprsubset',mug='notsubset',iDh='nowrap',plh='npar;',rlh='nparallel;',slh='npolint;',tlh='npr;',ulh='nprcue;',vlh='nprec;',wlh='nrArr;',xlh='nrarr;',ylh='nrightarrow;',zlh='nrtri;',Alh='nrtrie;',Dlh='nsc;',Elh='nsccue;',Flh='nscr;',amh='nshortmid;',bmh='nshortparallel;',cmh='nsim;',dmh='nsime;',emh='nsimeq;',fmh='nsmid;',gmh='nspar;',imh='nsqsube;',jmh='nsqsupe;',kmh='nsub;',lmh='nsube;',mmh='nsubseteq;',nmh='nsucc;',omh='nsup;',pmh='nsupe;',qmh='nsupseteq;',rmh='ntgl;',tmh='ntilde',umh='ntilde;',vmh='ntlg;',wmh='ntriangleleft;',xmh='ntrianglelefteq;',ymh='ntriangleright;',zmh='ntrianglerighteq;',cKh='nu.validator.htmlparser.common.',lKh='nu.validator.htmlparser.gwt.',lIh='nu.validator.htmlparser.gwt.HtmlParserModule',iKh='nu.validator.htmlparser.impl.',Amh='nu;',rQh='null',Bmh='num;',BRh='numOctaves',Cmh='numero;',ARh='numoctaves',Emh='numsp;',Fmh='nvDash;',anh='nvHarr;',bnh='nvdash;',cnh='nvinfin;',dnh='nvlArr;',enh='nvrArr;',fnh='nwArr;',gnh='nwarhk;',hnh='nwarr;',jnh='nwarrow;',knh='nwnear;',lnh='oS;',mnh='oacute',nnh='oacute;',onh='oast;',FKg='object',qRh='occurrence',pnh='ocir;',qnh='ocirc',rnh='ocirc;',jxg='octype',snh='ocy;',unh='odash;',vnh='odblac;',wnh='odiv;',xnh='odot;',ynh='odsold;',znh='oelig;',Anh='ofcir;',gCh='offset',Bnh='ofr;',Cnh='ogon;',Dnh='ograve',Fnh='ograve;',aoh='ogt;',boh='ohbar;',coh='ohm;',doh='oint;',t2h='ol',eoh='olarr;',foh='olcir;',goh='olcross;',hoh='oline;',ioh='olt;',koh='omacr;',loh='omega;',moh='omicron;',noh='omid;',ooh='ominus;',kIh='onModuleLoadStart',iMh='onabort',pRh='onactivate',hVh='onafterprint',dXh='onafterupdate',m0h='onbefordeactivate',oZh='onbeforeactivate',iVh='onbeforecopy',uTh='onbeforecut',p0h='onbeforeeditfocus',gXh='onbeforepaste',kXh='onbeforeprint',hYh='onbeforeunload',dYh='onbeforeupdate',dMh='onbegin',BBh='onblur',aOh='onbounce',eVh='oncellchange',FNh='onchange',aMh='onclick',iXh='oncontextmenu',aZh='oncontrolselect',CCh='oncopy',uoh='oncut',FYh='ondataavailable',qZh='ondatasetchanged',n0h='ondatasetcomplete',sRh='ondblclick',FUh='ondeactivate',zzh='ondrag',uRh='ondragdrop',zPh='ondragend',sTh='ondragenter',nTh='ondragleave',xRh='ondragover',xTh='ondragstart',qBh='ondrop',inh='onend',gMh='onerror',fXh='onerrorupdate',eYh='onfilterchange',cOh='onfinish',fMh='onfocus',EPh='onfocusin',yRh='onfocusout',dVh='onformchange',wTh='onforminput',AAh='onhelp',hMh='oninput',CPh='oninvalid',DPh='onkeydown',vRh='onkeypress',eMh='onkeyup',nzh='onload',hXh='onlosecapture',xPh='onmessage',qTh='onmousedown',gVh='onmouseenter',bVh='onmouseleave',oTh='onmousemove',zRh='onmouseout',rTh='onmouseover',FPh='onmouseup',fVh='onmousewheel',czh='onmove',APh='onmoveend',yTh='onmovestart',FLh='onpaste',pZh='onpropertychange',x0h='onreadystatechange',iOh='onrepeat',kMh='onreset',ENh='onresize',wRh='onrowenter',bQh='onrowexit',aVh='onrowsdelete',fYh='onrowsinserted',dOh='onscroll',jOh='onselect',jXh='onselectstart',jMh='onstart',fBh='onstop',hOh='onsubmit',bOh='onunload',pAh='onzoom',poh='oopf;',lMh='opacity',qoh='opar;',nah='open',fOh='operator',roh='operp;',soh='oplus;',oxg='optgroup',cMh='optimum',dxg='option',u2h='or',toh='or;',voh='orarr;',woh='ord;',Enh='order',xoh='order;',yoh='orderof;',zoh='ordf',Aoh='ordf;',Boh='ordm',Coh='ordm;',bLh='org.xml.sax.',rCh='orient',pTh='orientation',eAh='origin',Doh='origof;',Eoh='oror;',aph='orslope;',bph='orv;',cph='oscr;',dph='oslash',eph='oslash;',fph='osol;',joh='other',nug='otherwise',gph='otilde',hph='otilde;',iph='otimes;',jph='otimesas;',mph='ouml',nph='ouml;',Cvg='outerproduct',Dqg='output',oph='ovbar;',gOh='overflow',o0h='overline-position',y0h='overline-thickness',ywg='p',CNh='panose-1',pph='par;',qph='para',rph='para;',sph='parallel;',l6h='param',tph='parsim;',uph='parsl;',vph='part;',ovg='partialdiff',heh='path',gSh='pathLength',fSh='pathlength',BMh='pattern',e1h='patternContentUnits',vZh='patternTransform',zVh='patternUnits',d1h='patterncontentunits',uZh='patterntransform',xVh='patternunits',xph='pcy;',yph='percnt;',zph='period;',Aph='permil;',Bph='perp;',Cph='pertenk;',Dph='pfr;',Eph='phi;',Fph='phiv;',aqh='phmmat;',cqh='phone;',v2h='pi',dqh='pi;',k6h='piece',oug='piecewise',seh='ping',eqh='pitchfork;',fqh='piv;',EJg='plaintext',gqh='planck;',hqh='planckh;',iqh='plankv;',uQh='playcount',c5h='plus',jqh='plus;',kqh='plusacir;',lqh='plusb;',nqh='pluscir;',oqh='plusdo;',pqh='plusdu;',qqh='pluse;',rqh='plusmn',sqh='plusmn;',tqh='plussim;',uqh='plustwo;',vqh='pm;',oYh='pointer-events',wqh='pointint;',dIh='points',pQh='pointsAtX',tQh='pointsAtY',nQh='pointsAtZ',oQh='pointsatx',qQh='pointsaty',mQh='pointsatz',ysg='polygon',wtg='polyline',yqh='popf;',yHh='poster',zqh='pound',Aqh='pound;',m6h='power',Bqh='pr;',Cqh='prE;',Dqh='prap;',Eqh='prcue;',y3h='pre',Fqh='pre;',arh='prec;',brh='precapprox;',drh='preccurlyeq;',erh='preceq;',frh='precnapprox;',grh='precneqq;',hrh='precnsim;',irh='precsim;',xtg='prefetch',vXh='preserveAlpha',c1h='preserveAspectRatio',uXh='preservealpha',b1h='preserveaspectratio',jrh='prime;',Eqg='primes',krh='primes;',qYh='primitiveUnits',pYh='primitiveunits',lrh='prnE;',mrh='prnap;',orh='prnsim;',prh='prod;',zsg='product',qrh='profalar;',CMh='profile',rrh='profline;',srh='profsurf;',ytg='progress',oIh='prompt',trh='prop;',urh='propto;',vrh='prsim;',ztg='prsubset',wrh='prurel;',xrh='pscr;',zrh='psi;',Arh='puncsp;',x1h='q',Brh='qfr;',Crh='qint;',Drh='qopf;',Erh='qprime;',Frh='qscr;',ash='quaternions;',bsh='quatint;',csh='quest;',esh='questeq;',fsh='quot',gsh='quot;',Atg='quotient',uSg='r',hsh='rAarr;',ish='rArr;',jsh='rAtail;',ksh='rBarr;',lsh='rHar;',msh='race;',nsh='racute;',wwg='radialGradient',vwg='radialgradient',psh='radic;',iSh='radiogroup',gKh='radius',qsh='raemptyv;',rsh='rang;',ssh='rangd;',tsh='range;',ush='rangle;',vsh='raquo',wsh='raquo;',xsh='rarr;',ysh='rarrap;',Bsh='rarrb;',Csh='rarrbfs;',Dsh='rarrc;',Esh='rarrfs;',Fsh='rarrhk;',ath='rarrlp;',bth='rarrpl;',cth='rarrsim;',dth='rarrtl;',eth='rarrw;',gth='ratail;',hth='ratio;',pug='rationals',ith='rationals;',jth='rbarr;',kth='rbbrk;',lth='rbrace;',mth='rbrack;',nth='rbrke;',oth='rbrksld;',pth='rbrkslu;',rth='rcaron;',sth='rcedil;',tth='rceil;',uth='rcub;',vth='rcy;',wth='rdca;',xth='rdldhar;',yth='rdquo;',zth='rdquor;',Ath='rdsh;',uOh='readonly',f5h='real',Cth='real;',Dth='realine;',Eth='realpart;',n6h='reals',Fth='reals;',h5h='rect',auh='rect;',jfh='refX',Ffh='refY',Eeh='refx',ufh='refy',buh='reg',cuh='reg;',p5g='rel',g5h='reln',z3h='rem',yZh='rendering-intent',yNg='renesis',CKh='repeat',hSh='repeat-max',mSh='repeat-min',FVh='repeat-start',gZh='repeat-template',gUh='repeatCount',yQh='repeatDur',fUh='repeatcount',xQh='repeatdur',fNh='replace',BOh='required',C0h='requiredExtensions',xZh='requiredFeatures',B0h='requiredextensions',wZh='requiredfeatures',EMh='restart',rKh='result',A5g='rev',duh='rfisht;',euh='rfloor;',fuh='rfr;',huh='rhard;',iuh='rharu;',juh='rharul;',kuh='rho;',luh='rhov;',muh='rightarrow;',nuh='rightarrowtail;',ouh='rightharpoondown;',puh='rightharpoonup;',quh='rightleftarrows;',suh='rightleftharpoons;',tuh='rightrightarrows;',uuh='rightsquigarrow;',vuh='rightthreetimes;',wuh='ring;',xuh='risingdotseq;',yuh='rlarr;',zuh='rlhar;',Auh='rlm;',Buh='rmoust;',Duh='rmoustache;',Euh='rnmid;',Fuh='roang;',avh='roarr;',bvh='robrk;',bih='role',i5h='root',cvh='ropar;',dvh='ropf;',evh='roplus;',fLh='rotate',fvh='rotimes;',yOh='rowalign',wOh='rowlines',ahh='rows',nSh='rowspacing',FMh='rowspan',x2h='rp',gvh='rpar;',ivh='rpargt;',jvh='rppolint;',gLh='rquote',kvh='rrarr;',lvh='rsaquo;',mvh='rscr;',nvh='rsh;',eLh='rspace',ovh='rsqb;',pvh='rsquo;',qvh='rsquor;',tZg='rt',rvh='rthree;',tvh='rtimes;',uvh='rtri;',vvh='rtrie;',wvh='rtrif;',xvh='rtriltri;',AGg='ruby',d5h='rule',fth='rules',yvh='ruluhar;',EZg='rx',zvh='rx;',j0g='ry',oOg='s',fPg='s:',Avh='sacute;',l5h='samp',aNh='sandbox',Bvh='sbquo;',Cvh='sc;',Evh='scE;',iwg='scalarproduct',osh='scale',Fvh='scap;',awh='scaron;',bwh='sccue;',cwh='sce;',dwh='scedil;',pJh='scheme',ewh='scirc;',fwh='scnE;',gwh='scnap;',hwh='scnsim;',dsh='scope',zIh='scoped',lwh='scpolint;',hIg='script',eUh='scriptlevel',wXh='scriptminsize',g1h='scriptsizemultiplier',lUh='scrolldelay',wQh='scrolling',mwh='scsim;',nwh='scy;',n5h='sdev',owh='sdot;',pwh='sdotb;',qwh='sdote;',rwh='seArr;',xOh='seamless',swh='searhk;',twh='searr;',uwh='searrow;',B3h='sec',j5h='sech',wwh='sect',xwh='sect;',Bsg='section',vgh='seed',xvg='select',vOh='selected',zQh='selection',Btg='selector',qug='semantics',ywh='semi;',F3h='sep',AQh='separator',lSh='separators',zwh='seswar;',b4h='set',Asg='setdiff',Awh='setminus;',Bwh='setmn;',Cwh='sext;',Dwh='sfr;',Ewh='sfrown;',yrh='shape',eZh='shape-rendering',Fwh='sharp;',bxh='shchcy;',cxh='shcy;',dxh='shortmid;',exh='shortparallel;',vSh='show',fxh='shy',gxh='shy;',hxh='sigma;',ixh='sigmaf;',jxh='sigmav;',kxh='sim;',mxh='simdot;',nxh='sime;',oxh='simeq;',pxh='simg;',qxh='simgE;',rxh='siml;',sxh='simlE;',txh='simne;',uxh='simplus;',vxh='simrarr;',E3h='sin',k5h='sinh',kgh='size',xxh='slarr;',nrh='slope',o6h='small',yxh='smallsetminus;',zxh='smashp;',Axh='smeparsl;',Bxh='smid;',Cxh='smile;',Dxh='smt;',Exh='smte;',Fxh='softcy;',ayh='sol;',cyh='solb;',dyh='solbar;',Dug='solidcolor',eyh='sopf;',Fqg='source',CQh='space',erg='spacer',DMh='spacing',fyh='spades;',gyh='spadesuit;',lhh='span',hyh='spar;',xXh='specification',CZh='specularConstant',AZh='specularExponent',BZh='specularconstant',zZh='specularexponent',Ash='speed',BVh='spreadMethod',AVh='spreadmethod',iyh='sqcap;',jyh='sqcup;',kyh='sqsub;',lyh='sqsube;',nyh='sqsubset;',oyh='sqsubseteq;',pyh='sqsup;',qyh='sqsupe;',ryh='sqsupset;',syh='sqsupseteq;',tyh='squ;',uyh='square;',vyh='squarf;',wyh='squf;',yyh='srarr;',f6g='src',zyh='sscr;',Ayh='ssetmn;',Byh='ssmile;',Cyh='sstarf;',eNh='standby',Dyh='star;',Eyh='starf;',guh='start',kUh='startOffset',jUh='startoffset',iIh='startup',bWh='stdDeviation',aWh='stddeviation',qth='stemh',Bth='stemv',whh='step',iUh='stitchTiles',hUh='stitchtiles',m5h='stop',kSh='stop-color',cWh='stop-opacity',Fyh='straightepsilon;',azh='straightphi;',zOh='stretchy',arg='strike',l1h='strikethrough-position',m1h='strikethrough-thickness',eJh='string',bzh='strns;',AJh='stroke',FZh='stroke-dasharray',u0h='stroke-dashoffset',uYh='stroke-linecap',fZh='stroke-linejoin',v0h='stroke-miterlimit',wYh='stroke-opacity',EVh='stroke-width',brg='strong',BHg='style',A3h='sub',dzh='sub;',ezh='subE;',fzh='subdot;',gzh='sube;',hzh='subedot;',izh='submult;',jzh='subnE;',kzh='subne;',lzh='subplus;',mzh='subrarr;',vYh='subscriptshift',frg='subset',ozh='subset;',pzh='subseteq;',qzh='subseteqq;',rzh='subsetneq;',szh='subsetneqq;',tzh='subsim;',uzh='subsub;',vzh='subsup;',wzh='succ;',xzh='succapprox;',Azh='succcurlyeq;',Bzh='succeq;',Czh='succnapprox;',Dzh='succneqq;',Ezh='succnsim;',Fzh='succsim;',D3h='sum',aAh='sum;',bNh='summary',bAh='sung;',a4h='sup',cAh='sup1',dAh='sup1;',fAh='sup2',gAh='sup2;',hAh='sup3',iAh='sup3;',jAh='sup;',kAh='supE;',lAh='supdot;',mAh='supdsub;',nAh='supe;',oAh='supedot;',EZh='superscriptshift',qAh='suphsub;',rAh='suplarr;',sAh='supmult;',tAh='supnE;',uAh='supne;',vAh='supplus;',wAh='supset;',xAh='supseteq;',yAh='supseteqq;',zAh='supsetneq;',BAh='supsetneqq;',CAh='supsim;',DAh='supsub;',EAh='supsup;',DVh='surfaceScale',CVh='surfacescale',C3h='svg',FAh='swArr;',aBh='swarhk;',bBh='swarr;',cBh='swarrow;',crg='switch',dBh='swnwar;',drg='symbol',vQh='symmetric',tYh='systemLanguage',sYh='systemlanguage',eBh='szlig',gBh='szlig;',tOh='tabindex',cwg='table',dUh='tableValues',cUh='tablevalues',d4h='tan',s5h='tanh',lGh='target',hBh='target;',uMh='targetX',wMh='targetY',tMh='targetx',vMh='targety',iBh='tau;',FBg='tbody',grg='tbreak',jBh='tbrk;',kBh='tcaron;',lBh='tcedil;',mBh='tcy;',fyg='td',nBh='tdot;',oBh='telrec;',sOh='template',Csg='tendsto',Cdh='text',FTh='text-anchor',dZh='text-decoration',mYh='text-rendering',aSh='textLength',Dtg='textPath',qHg='textarea',FRh='textlength',Ctg='textpath',vCg='tfoot',pBh='tfr;',qyg='th',kCg='thead',rBh='there4;',sBh='therefore;',tBh='theta;',uBh='thetasym;',vBh='thetav;',wBh='thickapprox;',lYh='thickmathspace',xBh='thicksim;',oXh='thinmathspace',yBh='thinsp;',zBh='thkap;',ABh='thksim;',CBh='thorn',DBh='thorn;',EBh='tilde;',o5h='time',r6h='times',FBh='times;',aCh='timesb;',bCh='timesbar;',cCh='timesd;',dCh='tint;',fHg='title',u0g='to',eCh='toea;',fCh='top;',hCh='topbot;',iCh='topcir;',jCh='topf;',kCh='topfork;',lCh='tosa;',mCh='tprime;',uBg='tr',nCh='trade;',jQh='transform',rug='transpose',r5h='tref',oCh='triangle;',pCh='triangledown;',qCh='triangleleft;',sCh='trianglelefteq;',tCh='triangleq;',uCh='triangleright;',vCh='trianglerighteq;',wCh='tridot;',xCh='trie;',yCh='triminus;',zCh='triplus;',ACh='trisb;',BCh='tritime;',DCh='trpezium;',q5h='true',ECh='tscr;',FCh='tscy;',aDh='tshcy;',p6h='tspan',bDh='tstrok;',y2h='tt',cDh='twixt;',dDh='twoheadleftarrow;',eDh='twoheadrightarrow;',Bch='type',y1h='u',gZg='u1',BYg='u2',fDh='uArr;',gDh='uHar;',jDh='uacute',kDh='uacute;',lDh='uarr;',kxg='ublic',mDh='ubrcy;',nDh='ubreve;',oDh='ucirc',pDh='ucirc;',qDh='ucy;',rDh='udarr;',sDh='udblac;',uDh='udhar;',vDh='ufisht;',wDh='ufr;',xDh='ugrave',yDh='ugrave;',zDh='uharl;',ADh='uharr;',BDh='uhblk;',z2h='ul',CDh='ulcorn;',DDh='ulcorner;',FDh='ulcrop;',aEh='ultri;',bEh='umacr;',cEh='uml',dEh='uml;',z0h='underline-position',a1h='underline-thickness',sMh='unicode',sVh='unicode-bidi',nXh='unicode-range',s6h='union',tVh='units-per-em',rVh='unselectable',eEh='uogon;',fEh='uopf;',gEh='uparrow;',hEh='updownarrow;',iEh='upharpoonleft;',kEh='upharpoonright;',Dsg='uplimit',lEh='uplus;',mEh='upsi;',nEh='upsih;',oEh='upsilon;',pEh='upuparrows;',qEh='urcorn;',rEh='urcorner;',sEh='urcrop;',tEh='uring;',vEh='urtri;',wEh='uscr;',e4h='use',vFh='usemap',xEh='utdot;',yEh='utilde;',zEh='utri;',AEh='utrif;',BEh='uuarr;',CEh='uuml',DEh='uuml;',EEh='uwangle;',wVh='v-alphabetic',kQh='v-hanging',tXh='v-ideographic',nYh='v-mathematical',aFh='vArr;',bFh='vBar;',cFh='vBarv;',dFh='vDash;',cHh='valign',crh='value',xGh='values',lQh='valuetype',eFh='vangrt;',f4h='var',fFh='varepsilon;',Etg='variance',gFh='varkappa;',hFh='varnothing;',iFh='varphi;',jFh='varpi;',lFh='varpropto;',mFh='varr;',nFh='varrho;',oFh='varsigma;',pFh='vartheta;',qFh='vartriangleleft;',rFh='vartriangleright;',sFh='vcy;',tFh='vdash;',irg='vector',jwg='vectorproduct',uFh='vee;',wFh='veebar;',xFh='veeeq;',yFh='vellip;',zFh='verbar;',AMh='version',eSh='vert-adv-y',rXh='vert-origin-x',sXh='vert-origin-y',AFh='vert;',A0h='verythickmathspace',s0h='verythinmathspace',j1h='veryverythickmathspace',i1h='veryverythinmathspace',BFh='vfr;',u6h='video',t5h='view',zMh='viewBox',dSh='viewTarget',yMh='viewbox',cSh='viewtarget',bSh='visibility',t6h='vkern',xqh='vlink',CFh='vltri;',DFh='vopf;',EFh='vprop;',FFh='vrtri;',bGh='vscr;',nHh='vspace',cGh='vzigzag;',g4h='wbr',dGh='wcirc;',eGh='wedbar;',fGh='wedge;',gGh='wedgeq;',hGh='weierp;',iGh='wfr;',gdh='when',mqh='width',aGh='widths',jGh='wopf;',uVh='word-spacing',kGh='wp;',mGh='wr;',rdh='wrap',nGh='wreath;',vVh='writing-mode',oGh='wscr;',FSg='x',EOh='x-height',v1g='x1',a2g='x2',b0h='xChannelSelector',pGh='xcap;',a0h='xchannelselector',qGh='xcirc;',rGh='xcup;',sGh='xdtri;',tGh='xfr;',uGh='xhArr;',vGh='xharr;',yGh='xi;',zGh='xlArr;',AGh='xlarr;',hRg='xlink',yXh='xlink:actuate',AXh='xlink:arcrole',sSh='xlink:href',rSh='xlink:role',tSh='xlink:show',oUh='xlink:title',qSh='xlink:type',BGh='xmap;',sRg='xml',COh='xml:base',DOh='xml:lang',BQh='xml:space',CQg='xmlns',s1h='xmlns:',nUh='xmlns:xlink',sIg='xmp',CGh='xnis;',DGh='xodot;',EGh='xopf;',FGh='xoplus;',h4h='xor',aHh='xotime;',bHh='xrArr;',dHh='xrarr;',nih='xref',eHh='xscr;',fHh='xsqcup;',gHh='xuplus;',hHh='xutri;',iHh='xvee;',jHh='xwedge;',kTg='y',k1g='y1',F0g='y2',d0h='yChannelSelector',kHh='yacute',lHh='yacute;',mHh='yacy;',c0h='ychannelselector',oHh='ycirc;',pHh='ycy;',qHh='yen',rHh='yen;',sHh='yfr;',tHh='yicy;',uHh='yopf;',vHh='yscr;',lxg='ystem',wHh='yucy;',xHh='yuml',zHh='yuml;',vTg='z',AHh='zacute;',BHh='zcaron;',CHh='zcy;',DHh='zdot;',EHh='zeetrf;',FHh='zeta;',aIh='zfr;',bIh='zhcy;',cIh='zigrarr;',pSh='zoomAndPan',oSh='zoomandpan',eIh='zopf;',fIh='zscr;',gIh='zwj;',hIh='zwnj;',b3g='{',F9g='}',tsg='\u201D cannot be represented as XML 1.0.',eyg='\u201D is not serializable as XML 1.0.',nxg='\u201D without an explicit value seen. The attribute may be dropped by IE7.',rxg='\u201D.';var _,C7h=[0,-9223372036854775808],D7h=[16777216,0],E7h=[4294967295,9223372032559808512];function zdi(a){return (this==null?null:this)===(a==null?null:a)}
+(function () {
+var $gwt_version = "1.5.1";
+var $wnd = {};
+var $doc = {};
+var $moduleName, $moduleBase;
+var $stats = $wnd.__gwtStatsEvent ? function(a) {$wnd.__gwtStatsEvent(a)} : null;
+var cNh='',qPg='\n',n4h='\n ',Bxg=' which is not a legal XML 1.0 character.',cNg='#mathplayer',zOg='#renesis',rZg='(',vxg=').',iwh='): ',fPh='+//silmaril//dtd html pro v0r11 19970101//',cWg=', ',mih=', Size: ',dNh='-//W3C//DTD HTML 4.0 Frameset//EN',oNh='-//W3C//DTD HTML 4.0 Transitional//EN',zNh='-//W3C//DTD HTML 4.0//EN',eOh='-//W3C//DTD HTML 4.01 Frameset//EN',pOh='-//W3C//DTD HTML 4.01 Transitional//EN',AOh='-//W3C//DTD HTML 4.01//EN',utg='-//W3C//DTD XHTML 1.0 Strict//EN',lug='-//W3C//DTD XHTML 1.1//EN',qPh='-//advasoft ltd//dtd html 3.0 aswedit + extensions//',BPh='-//as//dtd html 3.0 aswedit + extensions//',gQh='-//ietf//dtd html 2.0 level 1//',sQh='-//ietf//dtd html 2.0 level 2//',DQh='-//ietf//dtd html 2.0 strict level 1//',iRh='-//ietf//dtd html 2.0 strict level 2//',tRh='-//ietf//dtd html 2.0 strict//',ERh='-//ietf//dtd html 2.0//',jSh='-//ietf//dtd html 2.1e//',uSh='-//ietf//dtd html 3.0//',FSh='-//ietf//dtd html 3.2 final//',kTh='-//ietf//dtd html 3.2//',vTh='-//ietf//dtd html 3//',bUh='-//ietf//dtd html level 0//',mUh='-//ietf//dtd html level 1//',xUh='-//ietf//dtd html level 2//',cVh='-//ietf//dtd html level 3//',nVh='-//ietf//dtd html strict level 0//',yVh='-//ietf//dtd html strict level 1//',dWh='-//ietf//dtd html strict level 2//',oWh='-//ietf//dtd html strict level 3//',zWh='-//ietf//dtd html strict//',eXh='-//ietf//dtd html//',qXh='-//metrius//dtd metrius presentational//',BXh='-//microsoft//dtd internet explorer 2.0 html strict//',gYh='-//microsoft//dtd internet explorer 2.0 html//',rYh='-//microsoft//dtd internet explorer 2.0 tables//',CYh='-//microsoft//dtd internet explorer 3.0 html strict//',hZh='-//microsoft//dtd internet explorer 3.0 html//',sZh='-//microsoft//dtd internet explorer 3.0 tables//',DZh='-//netscape comm. corp.//dtd html//',i0h='-//netscape comm. corp.//dtd strict html//',t0h="-//o'reilly and associates//dtd html 2.0//",F0h="-//o'reilly and associates//dtd html extended 1.0//",k1h="-//o'reilly and associates//dtd html extended relaxed 1.0//",v1h='-//softquad software//dtd hotmetal pro 6.0::19990601::extensions to html 4.0//',a2h='-//softquad//dtd hotmetal pro 4.0::19971010::extensions to html 4.0//',l2h='-//spyglass//dtd html 2.0 extended//',w2h='-//sq//dtd html 2.0 hotmetal + extensions//',b3h='-//sun microsystems corp.//dtd hotjava html//',m3h='-//sun microsystems corp.//dtd hotjava strict html//',x3h='-//w3c//dtd html 3 1995-03-24//',c4h='-//w3c//dtd html 3.2 draft//',o4h='-//w3c//dtd html 3.2 final//',z4h='-//w3c//dtd html 3.2//',e5h='-//w3c//dtd html 3.2s draft//',p5h='-//w3c//dtd html 4.0 frameset//',A5h='-//w3c//dtd html 4.0 transitional//',Czg='-//w3c//dtd html 4.01 frameset//en',rzg='-//w3c//dtd html 4.01 transitional//en',f6h='-//w3c//dtd html experimental 19960712//',q6h='-//w3c//dtd html experimental 970421//',B6h='-//w3c//dtd w3 html//',gzg='-//w3c//dtd xhtml 1.0 frameset//en',Byg='-//w3c//dtd xhtml 1.0 transitional//en',g7h='-//w3o//dtd w3 html 3.0//',sAg='-//w3o//dtd w3 html strict 3.0//en//',r7h='-//webtechs//dtd mozilla html 2.0//',Cqg='-//webtechs//dtd mozilla html//',DAg='-/w3c/dtd html 4.0 transitional/en',Dxg='.',gyg='0123456789ABCDEF',iBg=':',Aqg=': ',q6g='=',zqg='@',txg='A character reference expanded to a form feed which is not legal XML 1.0 white space.',iyg='AElig',jyg='AElig;',wLh='ALLOW',fKh='ALMOST_STANDARDS_MODE',mMh='ALTER_INFOSET',kyg='AMP',lyg='AMP;',yzh='AUTO',myg='Aacute',nyg='Aacute;',oyg='Abreve;',DIh='AbstractCollection',rJh='AbstractHashMap',tJh='AbstractHashMap$EntrySet',uJh='AbstractHashMap$EntrySetIterator',wJh='AbstractHashMap$MapEntryNull',xJh='AbstractHashMap$MapEntryString',EIh='AbstractList',yJh='AbstractList$IteratorImpl',zJh='AbstractList$ListIteratorImpl',qJh='AbstractMap',vJh='AbstractMapEntry',BJh='AbstractSequentialList',sJh='AbstractSet',pyg='Acirc',ryg='Acirc;',syg='Acy;',ePg='Add not supported on this collection',obh='Add not supported on this list',tyg='Afr;',uyg='Agrave',vyg='Agrave;',wyg='Alpha;',xyg='Amacr;',yyg='And;',zyg='Aogon;',Ayg='Aopf;',Cyg='ApplyFunction;',Dyg='Aring',Eyg='Aring;',vLg='Array types must match',FIh='ArrayList',cJh='ArrayStoreException',Fyg='Ascr;',azg='Assign;',bzg='Atilde',czg='Atilde;',mxg='Attribute \u201C',vKh='AttributeName',uKh='AttributeName;',dzg='Auml',ezg='Auml;',fzg='Backslash;',hzg='Barv;',izg='Barwed;',jzg='Bcy;',kzg='Because;',lzg='Bernoullis;',mzg='Beta;',nzg='Bfr;',ozg='Bopf;',pzg='Breve;',mKh='BrowserTreeBuilder',nKh='BrowserTreeBuilder$ScriptHolder',qzg='Bscr;',szg='Bumpeq;',ixg='CDATA[',tzg='CHcy;',uzg='COPY',vzg='COPY;',wzg='Cacute;',Blh="Can't get element ",xxg="Can't use FATAL here.",xzg='Cap;',yzg='CapitalDifferentialD;',zzg='Cayleys;',Azg='Ccaron;',Bzg='Ccedil',Dzg='Ccedil;',Ezg='Ccirc;',Fzg='Cconint;',aAg='Cdot;',bAg='Cedilla;',cAg='CenterDot;',dAg='Cfr;',uxg='Character reference expands to a control character (',eAg='Chi;',fAg='CircleDot;',gAg='CircleMinus;',iAg='CirclePlus;',jAg='CircleTimes;',fJh='Class',gJh='ClassCastException',kAg='ClockwiseContourIntegral;',lAg='CloseCurlyDoubleQuote;',mAg='CloseCurlyQuote;',kKh='CoalescingTreeBuilder',nAg='Colon;',oAg='Colone;',CJh='Comparators$1',pAg='Congruent;',qAg='Conint;',rAg='ContourIntegral;',tAg='Copf;',uAg='Coproduct;',vAg='CounterClockwiseContourIntegral;',wAg='Cross;',xAg='Cscr;',yAg='Cup;',zAg='CupCap;',AAg='DD;',BAg='DDotrahd;',CAg='DJcy;',EAg='DScy;',FAg='DZcy;',aBg='Dagger;',bBg='Darr;',cBg='Dashv;',dBg='Dcaron;',eBg='Dcy;',fBg='Del;',gBg='Delta;',hBg='Dfr;',kBg='DiacriticalAcute;',lBg='DiacriticalDot;',mBg='DiacriticalDoubleAcute;',nBg='DiacriticalGrave;',oBg='DiacriticalTilde;',pBg='Diamond;',qBg='DifferentialD;',dKh='DoctypeExpectation',eKh='DocumentMode',rBg='Dopf;',sBg='Dot;',tBg='DotDot;',vBg='DotEqual;',wBg='DoubleContourIntegral;',xBg='DoubleDot;',yBg='DoubleDownArrow;',zBg='DoubleLeftArrow;',ABg='DoubleLeftRightArrow;',BBg='DoubleLeftTee;',CBg='DoubleLongLeftArrow;',DBg='DoubleLongLeftRightArrow;',EBg='DoubleLongRightArrow;',aCg='DoubleRightArrow;',bCg='DoubleRightTee;',cCg='DoubleUpArrow;',dCg='DoubleUpDownArrow;',eCg='DoubleVerticalBar;',fCg='DownArrow;',gCg='DownArrowBar;',hCg='DownArrowUpArrow;',iCg='DownBreve;',jCg='DownLeftRightVector;',lCg='DownLeftTeeVector;',mCg='DownLeftVector;',nCg='DownLeftVectorBar;',oCg='DownRightTeeVector;',pCg='DownRightVector;',qCg='DownRightVectorBar;',rCg='DownTee;',sCg='DownTeeArrow;',tCg='Downarrow;',uCg='Dscr;',wCg='Dstrok;',qxg='Duplicate attribute \u201C',xCg='ENG;',yCg='ETH',zCg='ETH;',ACg='Eacute',BCg='Eacute;',CCg='Ecaron;',DCg='Ecirc',ECg='Ecirc;',FCg='Ecy;',bDg='Edot;',cDg='Efr;',dDg='Egrave',eDg='Egrave;',isg='Element name \u201C',fDg='Element;',xKh='ElementName',wKh='ElementName;',gDg='Emacr;',hDg='EmptySmallSquare;',iDg='EmptyVerySmallSquare;',AIh='Enum',jDg='Eogon;',kDg='Eopf;',mDg='Epsilon;',nDg='Equal;',oDg='EqualTilde;',pDg='Equilibrium;',zKh='ErrorReportingTokenizer',qDg='Escr;',rDg='Esim;',sDg='Eta;',tDg='Euml',uDg='Euml;',sIh='Exception',vDg='Exists;',xDg='ExponentialE;',bMh='FATAL',yDg='Fcy;',zDg='Ffr;',ADg='FilledSmallSquare;',BDg='FilledVerySmallSquare;',CDg='Fopf;',DDg='ForAll;',Cxg='Forbidden code point ',EDg='Fouriertrf;',FDg='Fscr;',aEg='GJcy;',cEg='GT',dEg='GT;',eEg='Gamma;',fEg='Gammad;',gEg='Gbreve;',hEg='Gcedil;',iEg='Gcirc;',jEg='Gcy;',kEg='Gdot;',lEg='Gfr;',nEg='Gg;',oEg='Gopf;',pEg='GreaterEqual;',qEg='GreaterEqualLess;',rEg='GreaterFullEqual;',sEg='GreaterGreater;',tEg='GreaterLess;',uEg='GreaterSlantEqual;',vEg='GreaterTilde;',wEg='Gscr;',zEg='Gt;',AEg='HARDcy;',kph='HTML',jwh='HTML401_STRICT',zsh='HTML401_TRANSITIONAL',BEg='Hacek;',DJh='HashMap',CEg='Hat;',DEg='Hcirc;',EEg='Hfr;',FEg='HilbertSpace;',aFg='Hopf;',bFg='HorizontalLine;',cFg='Hscr;',eFg='Hstrok;',AKh='HtmlAttributes',oKh='HtmlParser',pKh='HtmlParser$1',fFg='HumpDownHump;',gFg='HumpEqual;',hFg='IEcy;',iFg='IJlig;',jFg='IOcy;',kFg='Iacute',lFg='Iacute;',mFg='Icirc',nFg='Icirc;',pFg='Icy;',qFg='Idot;',rFg='Ifr;',sFg='Igrave',tFg='Igrave;',hJh='IllegalArgumentException',uFg='Im;',vFg='Imacr;',wFg='ImaginaryI;',xFg='Implies;',Deh='Index: ',bJh='IndexOutOfBoundsException',yFg='Int;',AFg='Integral;',BFg='Intersection;',CFg='InvisibleComma;',DFg='InvisibleTimes;',EFg='Iogon;',FFg='Iopf;',aGg='Iota;',bGg='Iscr;',cGg='Itilde;',dGg='Iukcy;',fGg='Iuml',gGg='Iuml;',vIh='JavaScriptException',wIh='JavaScriptObject$',hGg='Jcirc;',iGg='Jcy;',jGg='Jfr;',kGg='Jopf;',lGg='Jscr;',mGg='Jsercy;',nGg='Jukcy;',oGg='KHcy;',qGg='KJcy;',rGg='Kappa;',sGg='Kcedil;',tGg='Kcy;',uGg='Kfr;',vGg='Kopf;',wGg='Kscr;',xGg='LJcy;',yGg='LT',zGg='LT;',BGg='Lacute;',CGg='Lambda;',DGg='Lang;',EGg='Laplacetrf;',FGg='Larr;',aHg='Lcaron;',bHg='Lcedil;',cHg='Lcy;',dHg='LeftAngleBracket;',eHg='LeftArrow;',gHg='LeftArrowBar;',hHg='LeftArrowRightArrow;',iHg='LeftCeiling;',jHg='LeftDoubleBracket;',kHg='LeftDownTeeVector;',lHg='LeftDownVector;',mHg='LeftDownVectorBar;',nHg='LeftFloor;',oHg='LeftRightArrow;',pHg='LeftRightVector;',rHg='LeftTee;',sHg='LeftTeeArrow;',tHg='LeftTeeVector;',uHg='LeftTriangle;',vHg='LeftTriangleBar;',wHg='LeftTriangleEqual;',xHg='LeftUpDownVector;',yHg='LeftUpTeeVector;',zHg='LeftUpVector;',AHg='LeftUpVectorBar;',CHg='LeftVector;',DHg='LeftVectorBar;',EHg='Leftarrow;',FHg='Leftrightarrow;',aIg='LessEqualGreater;',bIg='LessFullEqual;',cIg='LessGreater;',dIg='LessLess;',eIg='LessSlantEqual;',fIg='LessTilde;',iIg='Lfr;',EJh='LinkedList',FJh='LinkedList$ListIteratorImpl',aKh='LinkedList$Node',jIg='Ll;',kIg='Lleftarrow;',lIg='Lmidot;',BKh='LocatorImpl',mIg='LongLeftArrow;',nIg='LongLeftRightArrow;',oIg='LongRightArrow;',pIg='Longleftarrow;',qIg='Longleftrightarrow;',rIg='Longrightarrow;',tIg='Lopf;',uIg='LowerLeftArrow;',vIg='LowerRightArrow;',wIg='Lscr;',xIg='Lsh;',yIg='Lstrok;',zIg='Lt;',AIg='Map;',BIg='Mcy;',CIg='MediumSpace;',EIg='Mellintrf;',FIg='Mfr;',aJg='MinusPlus;',bJg='Mopf;',cJg='Mscr;',dJg='Mu;',gIg='Must be array types',eJg='NJcy;',hDh='NO_DOCTYPE_ERRORS',fJg='Nacute;',gJg='Ncaron;',hJg='Ncedil;',jJg='Ncy;',kJg='NegativeMediumSpace;',lJg='NegativeThickSpace;',mJg='NegativeThinSpace;',nJg='NegativeVeryThinSpace;',oJg='NestedGreaterGreater;',pJg='NestedLessLess;',qJg='NewLine;',rJg='Nfr;',sxg='No digits after \u201C',sJg='NoBreak;',bKh='NoSuchElementException',uJg='NonBreakingSpace;',vJg='Nopf;',wJg='Not;',xJg='NotCongruent;',yJg='NotCupCap;',zJg='NotDoubleVerticalBar;',AJg='NotElement;',BJg='NotEqual;',CJg='NotExists;',DJg='NotGreater;',FJg='NotGreaterEqual;',aKg='NotGreaterLess;',bKg='NotGreaterTilde;',cKg='NotLeftTriangle;',dKg='NotLeftTriangleEqual;',eKg='NotLess;',fKg='NotLessEqual;',gKg='NotLessGreater;',hKg='NotLessTilde;',iKg='NotPrecedes;',kKg='NotPrecedesSlantEqual;',lKg='NotReverseElement;',mKg='NotRightTriangle;',nKg='NotRightTriangleEqual;',oKg='NotSquareSubsetEqual;',pKg='NotSquareSupersetEqual;',qKg='NotSubsetEqual;',rKg='NotSucceeds;',sKg='NotSucceedsSlantEqual;',tKg='NotSupersetEqual;',vKg='NotTilde;',wKg='NotTildeEqual;',xKg='NotTildeFullEqual;',yKg='NotTildeTilde;',zKg='NotVerticalBar;',AKg='Nscr;',BKg='Ntilde',CKg='Ntilde;',DKg='Nu;',jJh='NullPointerException',EKg='OElig;',aLg='Oacute',bLg='Oacute;',nIh='Object',oJh='Object;',cLg='Ocirc',dLg='Ocirc;',eLg='Ocy;',fLg='Odblac;',gLg='Ofr;',hLg='Ograve',iLg='Ograve;',jLg='Omacr;',lLg='Omega;',mLg='Omicron;',nLg='Oopf;',oLg='OpenCurlyDoubleQuote;',pLg='OpenCurlyQuote;',qLg='Or;',rLg='Oscr;',sLg='Oslash',tLg='Oslash;',uLg='Otilde',xLg='Otilde;',yLg='Otimes;',zLg='Ouml',ALg='Ouml;',BLg='OverBar;',CLg='OverBrace;',DLg='OverBracket;',ELg='OverParenthesis;',qKh='ParseEndListener',FLg='PartialD;',aMg='Pcy;',cMg='Pfr;',dMg='Phi;',eMg='Pi;',fMg='PlusMinus;',gMg='Poincareplane;',hMg='Popf;',iMg='Pr;',jMg='Precedes;',kMg='PrecedesEqual;',lMg='PrecedesSlantEqual;',nMg='PrecedesTilde;',oMg='Prime;',pMg='Product;',qMg='Proportion;',rMg='Proportional;',sMg='Pscr;',tMg='Psi;',lLh='QUIRKS_MODE',uMg='QUOT',vMg='QUOT;',wMg='Qfr;',yMg='Qopf;',zMg='Qscr;',AMg='RBarr;',BMg='REG',CMg='REG;',DMg='Racute;',EMg='Rang;',FMg='Rarr;',aNg='Rarrtl;',bNg='Rcaron;',dNg='Rcedil;',eNg='Rcy;',fNg='Re;',gNg='ReverseElement;',hNg='ReverseEquilibrium;',iNg='ReverseUpEquilibrium;',jNg='Rfr;',kNg='Rho;',lNg='RightAngleBracket;',mNg='RightArrow;',oNg='RightArrowBar;',pNg='RightArrowLeftArrow;',qNg='RightCeiling;',rNg='RightDoubleBracket;',sNg='RightDownTeeVector;',tNg='RightDownVector;',uNg='RightDownVectorBar;',vNg='RightFloor;',wNg='RightTee;',xNg='RightTeeArrow;',zNg='RightTeeVector;',ANg='RightTriangle;',BNg='RightTriangleBar;',CNg='RightTriangleEqual;',DNg='RightUpDownVector;',ENg='RightUpTeeVector;',FNg='RightUpVector;',aOg='RightUpVectorBar;',bOg='RightVector;',cOg='RightVectorBar;',eOg='Rightarrow;',fOg='Ropf;',gOg='RoundImplies;',hOg='Rrightarrow;',iOg='Rscr;',jOg='Rsh;',kOg='RuleDelayed;',tIh='RuntimeException',cLh='SAXException',dLh='SAXParseException',lOg='SHCHcy;',mOg='SHcy;',nOg='SOFTcy;',wGh='STANDARDS_MODE',pOg='Sacute;',dyg='Saw an xmlns attribute.',qOg='Sc;',rOg='Scaron;',sOg='Scedil;',tOg='Scirc;',uOg='Scy;',vOg='Sfr;',wOg='ShortDownArrow;',xOg='ShortLeftArrow;',yOg='ShortRightArrow;',AOg='ShortUpArrow;',BOg='Sigma;',COg='SmallCircle;',DOg='Sopf;',EOg='Sqrt;',FOg='Square;',aPg='SquareIntersection;',bPg='SquareSubset;',cPg='SquareSubsetEqual;',dPg='SquareSuperset;',gPg='SquareSupersetEqual;',hPg='SquareUnion;',iPg='Sscr;',EKh='StackNode',FKh='StackNode;',jPg='Star;',aUh='String',xEg='String index out of range: ',yIh='String;',kJh='StringBuffer',lJh='StringBuilder',mJh='StringIndexOutOfBoundsException',kPg='Sub;',lPg='Subset;',mPg='SubsetEqual;',nPg='Succeeds;',oPg='SucceedsEqual;',pPg='SucceedsSlantEqual;',rPg='SucceedsTilde;',sPg='SuchThat;',tPg='Sum;',uPg='Sup;',vPg='Superset;',wPg='SupersetEqual;',xPg='Supset;',yPg='THORN',zPg='THORN;',APg='TRADE;',CPg='TSHcy;',DPg='TScy;',EPg='Tab;',FPg='Tau;',aQg='Tcaron;',bQg='Tcedil;',cQg='Tcy;',dQg='Tfr;',wxg='The document is not mappable to XML 1.0 due to a trailing hyphen in a comment.',pxg='The document is not mappable to XML 1.0 due to two consecutive hyphens in a comment.',eQg='Therefore;',fQg='Theta;',hQg='ThinSpace;',yxg='This document is not mappable to XML 1.0 without data loss due to ',xMh='This is a searchable index. Insert your search keywords here: ',rIh='Throwable',iQg='Tilde;',jQg='TildeEqual;',kQg='TildeFullEqual;',lQg='TildeTilde;',qIh='Timer',aJh='Timer$1',yKh='Tokenizer',mQg='Topf;',jKh='TreeBuilder',nQg='TripleDot;',oQg='Tscr;',pQg='Tstrok;',hyg='U',byg='U+',ayg='U+0',Fxg='U+00',Exg='U+000',aLh='UTF16Buffer',qQg='Uacute',sQg='Uacute;',tQg='Uarr;',uQg='Uarrocir;',vQg='Ubrcy;',wQg='Ubreve;',xQg='Ucirc',yQg='Ucirc;',zQg='Ucy;',AQg='Udblac;',BQg='Ufr;',DQg='Ugrave',EQg='Ugrave;',FQg='Umacr;',aRg='UnderBar;',bRg='UnderBrace;',cRg='UnderBracket;',dRg='UnderParenthesis;',eRg='Union;',fRg='UnionPlus;',uKg='Unreachable',cyg='Unreachable.',nJh='UnsupportedOperationException',gRg='Uogon;',iRg='Uopf;',jRg='UpArrow;',kRg='UpArrowBar;',lRg='UpArrowDownArrow;',mRg='UpDownArrow;',nRg='UpEquilibrium;',oRg='UpTee;',pRg='UpTeeArrow;',qRg='Uparrow;',rRg='Updownarrow;',tRg='UpperLeftArrow;',uRg='UpperRightArrow;',vRg='Upsi;',wRg='Upsilon;',xRg='Uring;',yRg='Uscr;',zRg='Utilde;',ARg='Uuml',BRg='Uuml;',CRg='VDash;',ERg='Vbar;',FRg='Vcy;',aSg='Vdash;',bSg='Vdashl;',cSg='Vee;',dSg='Verbar;',eSg='Vert;',fSg='VerticalBar;',gSg='VerticalLine;',hSg='VerticalSeparator;',jSg='VerticalTilde;',kSg='VeryThinSpace;',lSg='Vfr;',mSg='Vopf;',nSg='Vscr;',oSg='Vvdash;',pSg='Wcirc;',qSg='Wedge;',rSg='Wfr;',sSg='Wopf;',vSg='Wscr;',wSg='Xfr;',xSg='Xi;',hKh='XmlViolationPolicy',ySg='Xopf;',zSg='Xscr;',ASg='YAcy;',BSg='YIcy;',CSg='YUcy;',DSg='Yacute',ESg='Yacute;',aTg='Ycirc;',bTg='Ycy;',cTg='Yfr;',dTg='Yopf;',eTg='Yscr;',fTg='Yuml;',gTg='ZHcy;',hTg='Zacute;',iTg='Zcaron;',jTg='Zcy;',lTg='Zdot;',mTg='ZeroWidthSpace;',nTg='Zeta;',oTg='Zfr;',pTg='Zopf;',qTg='Zscr;',tSg='[',dJh='[C',iJh='[I',xIh='[Ljava.lang.',tKh='[Lnu.validator.htmlparser.impl.',sKh='[Z',DKh='[[C',BIh='[[D',sZg=']',oFg='a',rTg='aacute',sTg='aacute;',C6g='abbr',bvg='about:legacy-compat',tTg='abreve;',C2h='abs',uTg='ac;',Cuh='accent',gWh='accent-height',wSh='accentunder',ruh='accept',DXh='accept-charset',cPh='accesskey',bRh='accumulate',wTg='acd;',xTg='acirc',yTg='acirc;',rrg='acronym',kwh='action',aRh='actiontype',svh='active',zXh='actuate',zTg='acute',ATg='acute;',BTg='acy;',hNh='additive',yEg='address',CTg='aelig',DTg='aelig;',ETg='af;',FTg='afr;',bUg='agrave',cUg='agrave;',dUg='alefsym;',eUg='aleph;',ojh='align',w0h='alignment-baseline',EXh='alignmentscope',djh='alink',fUg='alpha;',FQh='alphabetic',l2g='alt',atg='altGlyph',Fug='altGlyphDef',qvg='altGlyphItem',Fsg='altglyph',Eug='altglyphdef',pvg='altglyphitem',Dvh='altimg',hLh='alttext',gUg='amacr;',hUg='amalg;',iUg='amp',jUg='amp;',gPh='amplitude',A2h='and',kUg='and;',mUg='andand;',nUg='andd;',oUg='andslope;',pUg='andv;',qUg='ang;',rUg='ange;',sUg='angle;',tUg='angmsd;',uUg='angmsdaa;',vUg='angmsdab;',xUg='angmsdac;',yUg='angmsdad;',zUg='angmsdae;',AUg='angmsdaf;',BUg='angmsdag;',CUg='angmsdah;',DUg='angrt;',EUg='angrtvb;',FUg='angrtvbd;',aVg='angsph;',cVg='angst;',dVg='angzarr;',krg='animate',svg='animateColor',Evg='animateMotion',zwg='animateTransform',rvg='animatecolor',Dvg='animatemotion',xwg='animatetransform',aug='animation',sug='annotation',kwg='annotation-xml',eVg='aogon;',fVg='aopf;',gVg='ap;',hVg='apE;',iVg='apacir;',jVg='ape;',kVg='apid;',lVg='apos;',A6h='applet',w5h='apply',D6h='approx',nVg='approx;',oVg='approxeq;',BSh='arabic-form',z6h='arccos',prg='arccosh',C6h='arccot',qrg='arccoth',w6h='arccsc',mrg='arccsch',iLh='archive',CXh='arcrole',v6h='arcsec',lrg='arcsech',y6h='arcsin',org='arcsinh',x6h='arctan',nrg='arctanh',i4h='area',B2h='arg',h1h='aria-activedescendant',ySh='aria-atomic',e0h='aria-autocomplete',dPh='aria-busy',uUh='aria-channel',rUh='aria-checked',eWh='aria-controls',vWh='aria-datatype',iZh='aria-describedby',qWh='aria-disabled',xYh='aria-dropeffect',pWh='aria-expanded',ASh='aria-flowto',ePh='aria-grab',fWh='aria-haspopup',zSh='aria-hidden',pUh='aria-invalid',yYh='aria-labelledby',cRh='aria-level',hPh='aria-live',FXh='aria-multiline',f1h='aria-multiselectable',FOh='aria-owns',jWh='aria-posinset',qUh='aria-pressed',lWh='aria-readonly',iWh='aria-relevant',nWh='aria-required',xSh='aria-secret',mWh='aria-selected',tUh='aria-setsize',bPh='aria-sort',zYh='aria-templateid',kWh='aria-valuemax',wWh='aria-valuemin',hWh='aria-valuenow',pVg='aring',qVg='aring;',jrg='article',hvh='ascent',rVg='ascr;',u5h='aside',sVg='ast;',tVg='asymp;',uVg='asympeq;',yih='async',vVg='atilde',wVg='atilde;',uWh='attributeName',sWh='attributeType',tWh='attributename',rWh='attributetype',v5h='audio',yVg='auml',zVg='auml;',sUh='autocomplete',aPh='autofocus',gNh='autoplay',EQh='autosubmit',AVg='awconint;',BVg='awint;',r6g='axis',jLh='azimuth',t1h='b',CVg='bNot;',DVg='backcong;',EVg='backepsilon;',fRh='background',FVg='backprime;',aWg='backsim;',bWg='backsimeq;',eWg='barvee;',fWg='barwed;',gWg='barwedge;',u9g='base',yWh='baseFrequency',eTh='baseProfile',btg='basefont',xWh='basefrequency',pNh='baseline',aYh='baseline-shift',dTh='baseprofile',h7g='bbox',hWg='bbrk;',iWg='bbrktbrk;',jWg='bcong;',kWg='bcy;',E2h='bdo',lWg='bdquo;',mWg='becaus;',nWg='because;',flh='begin',pWg='bemptyv;',qWg='bepsi;',rWg='bernou;',sWg='beta;',tWg='beth;',uWg='between;',nNh='bevelled',vWg='bfr;',oLh='bgcolor',trg='bgsound',i8g='bias',D2h='big',wWg='bigcap;',xWg='bigcirc;',yWg='bigcup;',AWg='bigodot;',BWg='bigoplus;',CWg='bigotimes;',DWg='bigsqcup;',EWg='bigstar;',FWg='bigtriangledown;',aXg='bigtriangleup;',bXg='biguplus;',cXg='bigvee;',dXg='bigwedge;',fXg='bkarow;',gXg='blacklozenge;',hXg='blacksquare;',iXg='blacktriangle;',jXg='blacktriangledown;',kXg='blacktriangleleft;',lXg='blacktriangleright;',mXg='blank;',nXg='blk12;',oXg='blk14;',qXg='blk34;',rXg='block;',tug='blockquote',sXg='bnot;',lDg='body',tXg='bopf;',vwh='border',uXg='bot;',vXg='bottom;',wXg='bowtie;',xXg='boxDL;',yXg='boxDR;',zXg='boxDl;',BXg='boxDr;',CXg='boxH;',DXg='boxHD;',EXg='boxHU;',FXg='boxHd;',aYg='boxHu;',bYg='boxUL;',cYg='boxUR;',dYg='boxUl;',eYg='boxUr;',gYg='boxV;',hYg='boxVH;',iYg='boxVL;',jYg='boxVR;',kYg='boxVh;',lYg='boxVl;',mYg='boxVr;',nYg='boxbox;',oYg='boxdL;',pYg='boxdR;',rYg='boxdl;',sYg='boxdr;',tYg='boxh;',uYg='boxhD;',vYg='boxhU;',wYg='boxhd;',xYg='boxhu;',yYg='boxminus;',zYg='boxplus;',AYg='boxtimes;',CYg='boxuL;',DYg='boxuR;',EYg='boxul;',FYg='boxur;',aZg='boxv;',bZg='boxvH;',cZg='boxvL;',dZg='boxvR;',eZg='boxvh;',fZg='boxvl;',hZg='boxvr;',iZg='bprime;',z1h='br',jZg='breve;',kZg='brvbar',lZg='brvbar;',mZg='bscr;',nZg='bsemi;',oZg='bsim;',pZg='bsime;',qZg='bsol;',uZg='bsolb;',vZg='bull;',wZg='bullet;',xZg='bump;',yZg='bumpE;',zZg='bumpe;',AZg='bumpeq;',E6h='button',j4h='bvar',aUg='by',BZg='cacute;',jNh='calcMode',iNh='calcmode',b7h='canvas',eRh='cap-height',CZg='cap;',DZg='capand;',FZg='capbrcup;',a0g='capcap;',b0g='capcup;',c0g='capdot;',nwg='caption',k4h='card',d0g='caret;',e0g='caron;',Awg='cartesianproduct',f0g='ccaps;',g0g='ccaron;',h0g='ccedil',i0g='ccedil;',k0g='ccirc;',l0g='ccups;',m0g='ccupssm;',n0g='cdot;',o0g='cedil',p0g='cedil;',wrg='ceiling',CSh='cellpadding',DSh='cellspacing',q0g='cemptyv;',r0g='cent',s0g='cent;',a7h='center',t0g='centerdot;',v0g='cfr;',j9g='char',nLh='charoff',qLh='charset',w0g='chcy;',x0g='check;',mLh='checked',y0g='checkmark;',z0g='chi;',A1h='ci',A0g='cir;',B0g='cirE;',C0g='circ;',D0g='circeq;',F6h='circle',E0g='circlearrowleft;',a1g='circlearrowright;',b1g='circledR;',c1g='circledS;',d1g='circledast;',e1g='circledcirc;',f1g='circleddash;',g1g='cire;',h1g='cirfnint;',i1g='cirmid;',j1g='cirscir;',s7g='cite',pkh='class',zxg='class ',bMg='classid',Akh='clear',E8g='clip',jPh='clip-path',iPh='clip-rule',dtg='clipPath',DWh='clipPathUnits',ctg='clippath',CWh='clippathunits',zjh='close',kLh='closure',mMg='clsid:32F66A20-7614-11D4-BD11-00104BD3F987',dOg='clsid:AC159093-1683-4BA2-9DCF-0C350141D7F2',l1g='clubs;',m1g='clubsuit;',B1h='cn',D7g='code',lNh='codebase',kNh='codetype',etg='codomain',a3h='col',aDg='colgroup',n1g='colon;',o1g='colone;',p1g='coloneq;',ekh='color',D0h='color-interpolation',q1h='color-interpolation-filters',BWh='color-profile',AYh='color-rendering',t8g='cols',pLh='colspan',aTh='columnalign',bTh='columnlines',AWh='columnspacing',dRh='columnspan',ESh='columnwidth',uIh='com.google.gwt.core.client.',pIh='com.google.gwt.user.client.',q1g='comma;',urg='command',r1g='commat;',s1g='comp;',rLh='compact',t1g='compfn;',u1g='complement;',dug='complexes',w1g='complexes;',vrg='compose',cug='condition',x1g='cong;',y1g='congdot;',z1g='conint;',bug='conjugate',sLh='content',g0h='contentScriptType',kZh='contentStyleType',BYh='contenteditable',f0h='contentscripttype',jZh='contentstyletype',cTh='contextmenu',mNh='controls',lxh='coords',A1g='copf;',B1g='coprod;',C1g='copy',D1g='copy;',E1g='copysr;',c3h='cos',m4h='cosh',d3h='cot',p4h='coth',F1g='crarr;',b2g='cross;',F2h='csc',l4h='csch',c2g='cscr;',d2g='csub;',e2g='csube;',f2g='csup;',g2g='csupe;',xrg='csymbol',h2g='ctdot;',i2g='cudarrl;',j2g='cudarrr;',k2g='cuepr;',m2g='cuesc;',n2g='cularr;',o2g='cularrp;',p2g='cup;',q2g='cupbrcap;',r2g='cupcap;',s2g='cupcup;',t2g='cupdot;',u2g='cupor;',v2g='curarr;',x2g='curarrm;',q4h='curl',y2g='curlyeqprec;',z2g='curlyeqsucc;',A2g='curlyvee;',B2g='curlywedge;',C2g='curren',D2g='curren;',axh='cursor',E2g='curvearrowleft;',F2g='curvearrowright;',a3g='cuvee;',d3g='cuwed;',e3g='cwconint;',f3g='cwint;',lUg='cx',wUg='cy',g3g='cylcty;',DRg='d',h3g='dArr;',i3g='dHar;',j3g='dagger;',k3g='daleth;',l3g='darr;',m3g='dash;',o3g='dashv;',l$g='data',vLh='datafld',yUh='dataformatas',ftg='datagrid',uLh='datasrc',tvg='datatemplate',wNh='datetime',p3g='dbkarow;',q3g='dblac;',r3g='dcaron;',s3g='dcy;',C1h='dd',t3g='dd;',u3g='ddagger;',v3g='ddarr;',w3g='ddotseq;',xLh='declare',ALh='default',Clh='defer',lwg='definition-src',FWh='definitionURL',EWh='definitionurl',t4h='defs',x3g='deg',z3g='deg;',d7h='degree',e3h='del',A3g='delta;',B3g='demptyv;',qlh='depth',r4h='desc',BLh='descent',zrg='details',avg='determinant',C3g='dfisht;',f3h='dfn',D3g='dfr;',E3g='dharl;',F3g='dharr;',e7h='dialog',a4g='diam;',b4g='diamond;',c4g='diamondsuit;',e4g='diams;',f4g='die;',s4h='diff',EYh='diffuseConstant',DYh='diffuseconstant',g4g='digamma;',w2g='dir',mPh='direction',xNh='disabled',yrg='discard',h4g='disin;',yLh='display',wUh='displaystyle',dFg='div',i4g='div;',uug='divergence',c7h='divide',j4g='divide;',k4g='divideontimes;',zLh='divisor',l4g='divonx;',m4g='djcy;',D1h='dl',n4g='dlcorn;',p4g='dlcrop;',q4g='dollar;',f7h='domain',fxg='domainofapplication',j0h='dominant-baseline',r4g='dopf;',s4g='dot;',t4g='doteq;',u4g='doteqdot;',v4g='dotminus;',w4g='dotplus;',x4g='dotsquare;',y4g='doublebarwedge;',A4g='downarrow;',B4g='downdownarrows;',C4g='downharpoonleft;',D4g='downharpoonright;',nPh='draggable',E4g='drbkarow;',F4g='drcorn;',a5g='drcrop;',b5g='dscr;',c5g='dscy;',d5g='dsol;',f5g='dstrok;',E1h='dt',g5g='dtdot;',h5g='dtri;',i5g='dtrif;',j5g='duarr;',k5g='duhar;',c3g='dur',l5g='dwangle;',bVg='dx',mVg='dy',m5g='dzcy;',n5g='dzigrarr;',o5g='eDDot;',q5g='eDot;',r5g='eacute',s5g='eacute;',t5g='easter;',u5g='ecaron;',v5g='ecir;',w5g='ecirc',x5g='ecirc;',y5g='ecolon;',z5g='ecy;',a$g='edge',sNh='edgeMode',rNh='edgemode',B5g='edot;',C5g='ee;',D5g='efDot;',E5g='efr;',F5g='eg;',a6g='egrave',b6g='egrave;',c6g='egs;',d6g='egsdot;',e6g='el;',lPh='elevation',g6g='elinters;',h6g='ell;',Arg='ellipse',i6g='els;',j6g='elsdot;',F1h='em',k6g='emacr;',x5h='embed',l6g='empty;',gtg='emptyset',m6g='emptyset;',n6g='emptyv;',o6g='emsp13;',p6g='emsp14;',s6g='emsp;',h0h='enable-background',tNh='encoding',tLh='enctype',n3g='end',t6g='eng;',u6g='ensp;',v6g='eogon;',w6g='eopf;',x6g='epar;',y6g='eparsl;',z6g='eplus;',A6g='epsi;',B6g='epsilon;',D6g='epsiv;',b2h='eq',E6g='eqcirc;',F6g='eqcolon;',a7g='eqsim;',b7g='eqslantgtr;',c7g='eqslantless;',vUh='equalcolumns',kPh='equalrows',d7g='equals;',e7g='equest;',f7g='equiv;',g7g='equivDD;',xug='equivalent',i7g='eqvparsl;',j7g='erDot;',k7g='erarr;',l7g='escr;',m7g='esdot;',n7g='esim;',o7g='eta;',p7g='eth',q7g='eth;',vug='eulergamma',r7g='euml',t7g='euml;',u7g='euro;',cvg='eventsource',v7g='excl;',w7g='exist;',h7h='exists',g3h='exp',x7g='expectation;',qNh='exponent',uvg='exponentiale',y7g='exponentiale;',o1h='externalResourcesRequired',n1h='externalresourcesrequired',m_g='face',fug='factorial',htg='factorof',z7g='fallingdotseq;',y5h='false',A7g='fcy;',bsg='feBlend',fwg='feColorMatrix',hxg='feComponentTransfer',gvg='feComposite',Dwg='feConvolveMatrix',Fwg='feDiffuseLighting',bxg='feDisplacementMap',rwg='feDistantLight',dsg='feFlood',Crg='feFuncA',Frg='feFuncB',ksg='feFuncG',msg='feFuncR',pwg='feGaussianBlur',fsg='feImage',hsg='feMerge',evg='feMergeNode',Bvg='feMorphology',ltg='feOffset',zvg='fePointLight',exg='feSpecularLighting',ivg='feSpotLight',j7h='feTile',wvg='feTurbulence',asg='feblend',ewg='fecolormatrix',gxg='fecomponenttransfer',fvg='fecomposite',Cwg='feconvolvematrix',Ewg='fediffuselighting',axg='fedisplacementmap',qwg='fedistantlight',csg='feflood',Brg='fefunca',Erg='fefuncb',jsg='fefuncg',lsg='fefuncr',owg='fegaussianblur',esg='feimage',B7g='female;',gsg='femerge',dvg='femergenode',Avg='femorphology',hmh='fence',ktg='feoffset',yvg='fepointlight',cxg='fespecularlighting',hvg='fespotlight',i7h='fetile',vvg='feturbulence',C7g='ffilig;',E7g='fflig;',F7g='ffllig;',a8g='ffr;',itg='fieldset',k7h='figure',b8g='filig;',w$g='fill',zUh='fill-opacity',rPh='fill-rule',wxh='filter',pPh='filterRes',iTh='filterUnits',oPh='filterres',hTh='filterunits',c8g='flat;',d8g='fllig;',jTh='flood-color',cXh='flood-opacity',z5h='floor',e8g='fltns;',c2h='fn',f8g='fnof;',u4h='font',eug='font-face',Bwg='font-face-format',mwg='font-face-name',Fvg='font-face-src',awg='font-face-uri',fTh='font-family',tPh='font-size',lZh='font-size-adjust',BUh='font-stretch',lRh='font-style',AUh='font-variant',lTh='font-weight',jRh='fontfamily',yNh='fontsize',sPh='fontstyle',kRh='fontweight',m7h='footer',g8g='fopf;',y3g='for',l7h='forall',h8g='forall;',dwg='foreignObject',bwg='foreignobject',j8g='fork;',k8g='forkv;',srg='form',byh='format',l8g='fpartint;',m8g='frac12',n8g='frac12;',o8g='frac13;',p8g='frac14',q8g='frac14;',r8g='frac15;',s8g='frac16;',u8g='frac18;',v8g='frac23;',w8g='frac25;',x8g='frac34',y8g='frac34;',z8g='frac35;',A8g='frac38;',B8g='frac45;',C8g='frac56;',D8g='frac58;',F8g='frac78;',smh='frame',gTh='frameborder',Axg='frameset',CUh='framespacing',a9g='frasl;',b_g='from',b9g='frown;',c9g='fscr;',oWg='fx',zWg='fy',u1h='g',dWg='g1',xVg='g2',d9g='gE;',e9g='gEl;',f9g='gacute;',g9g='gamma;',h9g='gammad;',i9g='gap;',k9g='gbreve;',h3h='gcd',l9g='gcirc;',m9g='gcy;',n9g='gdot;',o9g='ge;',p9g='gel;',i3h='geq',q9g='geq;',r9g='geqq;',s9g='geqslant;',t9g='ges;',v9g='gescc;',w9g='gesdot;',x9g='gesdoto;',y9g='gesdotol;',z9g='gesles;',A9g='gfr;',B9g='gg;',C9g='ggg;',D9g='gimel;',E9g='gjcy;',b$g='gl;',c$g='glE;',d$g='gla;',e$g='glj;',B5h='glyph',gRh='glyph-name',r1h='glyph-orientation-horizontal',p1h='glyph-orientation-vertical',vNh='glyphRef',uNh='glyphref',f$g='gnE;',g$g='gnap;',h$g='gnapprox;',i$g='gne;',j$g='gneq;',k$g='gneqq;',m$g='gnsim;',n$g='gopf;',v4h='grad',l0h='gradientTransform',bXh='gradientUnits',k0h='gradienttransform',aXh='gradientunits',o$g='grave;',hRh='groupalign',p$g='gscr;',q$g='gsim;',r$g='gsime;',s$g='gsiml;',j2h='gt',t$g='gt;',u$g='gtcc;',v$g='gtcir;',x$g='gtdot;',y$g='gtlPar;',z$g='gtquest;',A$g='gtrapprox;',B$g='gtrarr;',C$g='gtrdot;',D$g='gtreqless;',E$g='gtreqqless;',F$g='gtrless;',a_g='gtrsim;',d2h='h1',e2h='h2',f2h='h3',g2h='h4',h2h='h5',i2h='h6',c_g='hArr;',d_g='hairsp;',e_g='half;',f_g='hamilt;',nsg='handler',DLh='hanging',g_g='hardcy;',h_g='harr;',i_g='harrcir;',j_g='harrw;',k_g='hbar;',l_g='hcirc;',Drg='head',n7h='header',ELh='headers',n_g='hearts;',o_g='heartsuit;',xyh='height',p_g='hellip;',q_g='hercon;',r_g='hfr;',mEg='hidden',wPh='hidefocus',x_g='high',C5h='hkern',s_g='hksearow;',t_g='hkswarow;',u_g='hoarr;',v_g='homtht;',w_g='hookleftarrow;',y_g='hookrightarrow;',z_g='hopf;',A_g='horbar;',mTh='horiz-adv-x',bYh='horiz-origin-x',cYh='horiz-origin-y',k2h='hr',cah='href',DNh='hreflang',B_g='hscr;',C_g='hslash;',myh='hspace',D_g='hstrok;',hAg='html',oRh='http-equiv',jKg='http://n.validator.nu/placeholder/',jBg='http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd',wDg='http://www.w3.org/1998/Math/MathML',hrg='http://www.w3.org/1999/xhtml',rQg='http://www.w3.org/1999/xlink',bEg='http://www.w3.org/2000/svg',BPg='http://www.w3.org/2000/xmlns/',Esg='http://www.w3.org/TR/REC-html40/strict.dtd',mvg='http://www.w3.org/TR/html4/loose.dtd',jtg='http://www.w3.org/TR/html4/strict.dtd',Ftg='http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd',wug='http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd',gQg='http://www.w3.org/XML/1998/namespace',E_g='hybull;',F_g='hyphen;',w1h='i',aah='iacute',bah='iacute;',dah='ic;',eah='icirc',fah='icirc;',yah='icon',gah='icy;',kLg='id',E5h='ident',tTh='ideographic',hah='iecy;',iah='iexcl',jah='iexcl;',kah='iff;',lah='ifr;',DIg='iframe',mah='igrave',oah='igrave;',pah='ii;',qah='iiiint;',rah='iiint;',sah='iinfin;',tah='iiota;',uah='ijlig;',vah='imacr;',D5h='image',bZh='image-rendering',wah='image;',hug='imaginary',yug='imaginaryi',xah='imagline;',zah='imagpart;',Aah='imath;',j3h='img',Bah='imof;',Cah='imped;',psg='implies',qYg='in',d4g='in2',Dah='in;',Eah='incare;',tnh='index',Fah='infin;',otg='infinity',abh='infintie;',bbh='inodot;',pGg='input',aQh='inputmode',k3h='ins',l3h='int',cbh='int;',ebh='intcal;',ntg='integers',fbh='integers;',gbh='intercal;',yPh='intercept',kug='interface ',gug='intersect',mtg='interval',hbh='intlarhk;',ibh='intprod;',osg='inverse',jbh='iocy;',kbh='iogon;',lbh='iopf;',mbh='iota;',nbh='iprod;',qbh='iquest',rbh='iquest;',rRh='irrelevant',sbh='iscr;',tbh='isin;',ubh='isinE;',eGg='isindex',vbh='isindot;',wbh='isins;',xbh='isinsv;',ybh='isinv;',Dmh='ismap',zbh='it;',Bbh='itilde;',Cbh='iukcy;',Dbh='iuml',Ebh='iuml;',mIh='java.lang.',CIh='java.util.',Fbh='jcirc;',ach='jcy;',bch='jfr;',cch='jmath;',dch='jopf;',ech='jscr;',gch='jsercy;',hch='jukcy;',iSg='k',fYg='k1',pXg='k2',AXg='k3',eXg='k4',ich='kappa;',jch='kappav;',n3h='kbd',kch='kcedil;',lch='kcy;',EUh='kernelMatrix',nZh='kernelUnitLength',DUh='kernelmatrix',mZh='kernelunitlength',CLh='kerning',vPh='keyPoints',nRh='keySplines',BNh='keyTimes',o7h='keygen',uPh='keypoints',mRh='keysplines',ANh='keytimes',mch='kfr;',nch='kgreen;',och='khcy;',pch='kjcy;',rch='kopf;',sch='kscr;',tch='lAarr;',uch='lArr;',vch='lAtail;',wch='lBarr;',xch='lE;',ych='lEg;',zch='lHar;',wph='label',Ach='lacute;',Cch='laemptyv;',Dch='lagran;',p7h='lambda',Ech='lambda;',fch='lang',Fch='lang;',adh='langd;',bdh='langle;',rOh='language',cdh='lap;',iug='laplacian',ddh='laquo',edh='laquo;',rMh='largeop',fdh='larr;',hdh='larrb;',idh='larrbfs;',jdh='larrfs;',kdh='larrhk;',ldh='larrlp;',mdh='larrpl;',ndh='larrsim;',odh='larrtl;',pdh='lat;',qdh='latail;',sdh='late;',tdh='lbarr;',udh='lbbrk;',vdh='lbrace;',wdh='lbrack;',xdh='lbrke;',ydh='lbrksld;',zdh='lbrkslu;',Adh='lcaron;',Bdh='lcedil;',Ddh='lceil;',p3h='lcm',Edh='lcub;',Fdh='lcy;',aeh='ldca;',beh='ldquo;',ceh='ldquor;',deh='ldrdhar;',eeh='ldrushar;',feh='ldsh;',geh='le;',ieh='leftarrow;',jeh='leftarrowtail;',keh='leftharpoondown;',leh='leftharpoonup;',meh='leftleftarrows;',neh='leftrightarrow;',oeh='leftrightarrows;',peh='leftrightharpoons;',qeh='leftrightsquigarrow;',reh='leftthreetimes;',teh='leg;',q7h='legend',qVh='lengthAdjust',pVh='lengthadjust',q3h='leq',ueh='leq;',veh='leqq;',weh='leqslant;',xeh='les;',yeh='lescc;',zeh='lesdot;',Aeh='lesdoto;',Beh='lesdotor;',Ceh='lesges;',Feh='lessapprox;',afh='lessdot;',bfh='lesseqgtr;',cfh='lesseqqgtr;',dfh='lessgtr;',efh='lesssim;',jYh='letter-spacing',ffh='lfisht;',gfh='lfloor;',hfh='lfr;',ifh='lg;',kfh='lgE;',lfh='lhard;',mfh='lharu;',nfh='lharul;',ofh='lhblk;',m2h='li',kYh='lighting-color',F5h='limit',r0h='limitingConeAngle',q0h='limitingconeangle',w4h='line',twg='linearGradient',swg='lineargradient',hQh='linebreak',mXh='linethickness',Abh='link',qch='list',ptg='listener',rsg='listing',pfh='ljcy;',qfh='ll;',rfh='llarr;',sfh='llcorner;',tfh='llhard;',vfh='lltri;',wfh='lmidot;',xfh='lmoust;',yfh='lmoustache;',n2h='ln',zfh='lnE;',Afh='lnap;',Bfh='lnapprox;',Cfh='lne;',Dfh='lneq;',Efh='lneqq;',agh='lnsim;',bgh='loang;',cgh='loarr;',dgh='lobrk;',bqh='local',o3h='log',qsg='logbase',qOh='longdesc',egh='longleftarrow;',fgh='longleftrightarrow;',ggh='longmapsto;',hgh='longrightarrow;',igh='looparrowleft;',jgh='looparrowright;',qMh='loopend',iQh='loopstart',lgh='lopar;',mgh='lopf;',ngh='loplus;',ogh='lotimes;',e5g='low',pgh='lowast;',qgh='lowbar;',qtg='lowlimit',uEh='lowsrc',rgh='loz;',sgh='lozenge;',tgh='lozf;',ugh='lpar;',wgh='lparlt;',kFh='lquote',xgh='lrarr;',ygh='lrcorner;',zgh='lrhar;',Agh='lrhard;',Bgh='lrm;',Cgh='lrtri;',Dgh='lsaquo;',Egh='lscr;',Fgh='lsh;',bhh='lsim;',chh='lsime;',dhh='lsimg;',FEh='lspace',ehh='lsqb;',fhh='lsquo;',ghh='lsquor;',hhh='lstrok;',o2h='lt',ihh='lt;',jhh='ltcc;',khh='ltcir;',mhh='ltdot;',nhh='lthree;',ohh='ltimes;',phh='ltlarr;',qhh='ltquest;',rhh='ltrPar;',shh='ltri;',thh='ltrie;',uhh='ltrif;',vhh='lurdshar;',xhh='luruhar;',xMg='m',nNg='m:',yhh='mDDot;',zhh='macr',Ahh='macr;',EDh='macros',wsg='maction',Bhh='male;',jvg='maligngroup',zug='malignmark',Chh='malt;',Dhh='maltese;',mOh='manifest',s3h='map',Ehh='map;',Fhh='mapsto;',aih='mapstodown;',cih='mapstoleft;',dih='mapstoup;',jVh='marginheight',CTh='marginwidth',B4h='mark',y7h='marker',DRh='marker-end',CRh='marker-mid',mVh='marker-start',eih='marker;',lVh='markerHeight',ATh='markerUnits',ETh='markerWidth',kVh='markerheight',zTh='markerunits',DTh='markerwidth',vsg='marquee',pbh='mask',tZh='maskContentUnits',eQh='maskUnits',rZh='maskcontentunits',dQh='maskunits',A4h='math',iYh='mathbackground',cQh='mathcolor',oVh='mathematical',wLg='mathplayer',nOh='mathsize',BTh='mathvariant',B7h='matrix',jug='matrixrow',o4g='max',fQh='maxlength',pMh='maxsize',fih='mcomma;',gih='mcy;',hih='mdash;',C4h='mean',iih='measuredangle;',lph='media',w7h='median',cZh='mediummathspace',stg='menclose',E4h='menu',z7h='merror',E0h='message',x4h='meta',rtg='metadata',c6h='meter',jEh='method',ssg='mfenced',jih='mfr;',a6h='mfrac',v7h='mglyph',kih='mho;',p2h='mi',lih='micro',oih='micro;',pih='mid;',qih='midast;',rih='midcir;',sih='middot',tih='middot;',z4g='min',oMh='minsize',e6h='minus',uih='minus;',vih='minusb;',wih='minusd;',xih='minusdu;',gwg='missing-glyph',Bug='mlabeledtr',zih='mlcp;',Aih='mldr;',hwg='mmultiscripts',q2h='mn',Bih='mnplus;',r2h='mo',dbh='mode',Cih='models;',jIh='moduleStartup',A7h='moment',lvg='momentabout',Dih='mopf;',lXh='movablelimits',d6h='mover',Eih='mp;',usg='mpadded',b6h='mpath',ttg='mphantom',kvg='mprescripts',g6h='mroot',F4h='mrow',s2h='ms',Fih='mscr;',s7h='mspace',h6h='msqrt',ajh='mstpos;',u7h='mstyle',y4h='msub',xsg='msubsup',D4h='msup',t7h='mtable',r3h='mtd',i6h='mtext',t3h='mtr',bjh='mu;',cjh='multimap;',oOh='multiple',ejh='mumap;',x7h='munder',Aug='munderover',Bqg='must be positive',fjh='nLeftarrow;',gjh='nLeftrightarrow;',hjh='nRightarrow;',ijh='nVDash;',jjh='nVdash;',kjh='nabla;',ljh='nacute;',pXh='name',mjh='nap;',njh='napos;',pjh='napprox;',Foh='nargs',qjh='natur;',rjh='natural;',uwg='naturalnumbers',sjh='naturals;',w3h='nav',tjh='nbsp',ujh='nbsp;',vjh='ncap;',wjh='ncaron;',xjh='ncedil;',yjh='ncong;',Ajh='ncup;',Bjh='ncy;',Cjh='ndash;',Djh='ne;',Ejh='neArr;',Fjh='nearhk;',akh='nearr;',bkh='nearrow;',u3h='neq',ckh='nequiv;',dkh='nesear;',b5h='nest',fkh='nexist;',gkh='nexists;',hkh='nfr;',ikh='nge;',jkh='ngeq;',kkh='ngsim;',lkh='ngt;',mkh='ngtr;',nkh='nhArr;',okh='nharr;',qkh='nhpar;',rkh='ni;',skh='nis;',tkh='nisd;',ukh='niv;',vkh='njcy;',wkh='nlArr;',xkh='nlarr;',ykh='nldr;',zkh='nle;',Bkh='nleftarrow;',Ckh='nleftrightarrow;',Dkh='nleq;',Ekh='nless;',Fkh='nlsim;',alh='nlt;',blh='nltri;',clh='nltrie;',dlh='nmid;',zFg='nobr',iJg='noembed',tJg='noframes',tDh='nohref',a5h='none',elh='nopf;',lOh='noresize',vtg='noscript',nMh='noshade',v3h='not',glh='not;',Cug='notanumber',kOh='notation',j6h='notin',hlh='notin;',ilh='notinva;',jlh='notinvb;',klh='notinvc;',llh='notni;',mlh='notniva;',nlh='notnivb;',olh='notnivc;',nvg='notprsubset',mug='notsubset',iDh='nowrap',plh='npar;',rlh='nparallel;',slh='npolint;',tlh='npr;',ulh='nprcue;',vlh='nprec;',wlh='nrArr;',xlh='nrarr;',ylh='nrightarrow;',zlh='nrtri;',Alh='nrtrie;',Dlh='nsc;',Elh='nsccue;',Flh='nscr;',amh='nshortmid;',bmh='nshortparallel;',cmh='nsim;',dmh='nsime;',emh='nsimeq;',fmh='nsmid;',gmh='nspar;',imh='nsqsube;',jmh='nsqsupe;',kmh='nsub;',lmh='nsube;',mmh='nsubseteq;',nmh='nsucc;',omh='nsup;',pmh='nsupe;',qmh='nsupseteq;',rmh='ntgl;',tmh='ntilde',umh='ntilde;',vmh='ntlg;',wmh='ntriangleleft;',xmh='ntrianglelefteq;',ymh='ntriangleright;',zmh='ntrianglerighteq;',cKh='nu.validator.htmlparser.common.',lKh='nu.validator.htmlparser.gwt.',lIh='nu.validator.htmlparser.gwt.HtmlParserModule',iKh='nu.validator.htmlparser.impl.',Amh='nu;',rQh='null',Bmh='num;',BRh='numOctaves',Cmh='numero;',ARh='numoctaves',Emh='numsp;',Fmh='nvDash;',anh='nvHarr;',bnh='nvdash;',cnh='nvinfin;',dnh='nvlArr;',enh='nvrArr;',fnh='nwArr;',gnh='nwarhk;',hnh='nwarr;',jnh='nwarrow;',knh='nwnear;',lnh='oS;',mnh='oacute',nnh='oacute;',onh='oast;',FKg='object',qRh='occurrence',pnh='ocir;',qnh='ocirc',rnh='ocirc;',jxg='octype',snh='ocy;',unh='odash;',vnh='odblac;',wnh='odiv;',xnh='odot;',ynh='odsold;',znh='oelig;',Anh='ofcir;',gCh='offset',Bnh='ofr;',Cnh='ogon;',Dnh='ograve',Fnh='ograve;',aoh='ogt;',boh='ohbar;',coh='ohm;',doh='oint;',t2h='ol',eoh='olarr;',foh='olcir;',goh='olcross;',hoh='oline;',ioh='olt;',koh='omacr;',loh='omega;',moh='omicron;',noh='omid;',ooh='ominus;',kIh='onModuleLoadStart',iMh='onabort',pRh='onactivate',hVh='onafterprint',dXh='onafterupdate',m0h='onbefordeactivate',oZh='onbeforeactivate',iVh='onbeforecopy',uTh='onbeforecut',p0h='onbeforeeditfocus',gXh='onbeforepaste',kXh='onbeforeprint',hYh='onbeforeunload',dYh='onbeforeupdate',dMh='onbegin',BBh='onblur',aOh='onbounce',eVh='oncellchange',FNh='onchange',aMh='onclick',iXh='oncontextmenu',aZh='oncontrolselect',CCh='oncopy',uoh='oncut',FYh='ondataavailable',qZh='ondatasetchanged',n0h='ondatasetcomplete',sRh='ondblclick',FUh='ondeactivate',zzh='ondrag',uRh='ondragdrop',zPh='ondragend',sTh='ondragenter',nTh='ondragleave',xRh='ondragover',xTh='ondragstart',qBh='ondrop',inh='onend',gMh='onerror',fXh='onerrorupdate',eYh='onfilterchange',cOh='onfinish',fMh='onfocus',EPh='onfocusin',yRh='onfocusout',dVh='onformchange',wTh='onforminput',AAh='onhelp',hMh='oninput',CPh='oninvalid',DPh='onkeydown',vRh='onkeypress',eMh='onkeyup',nzh='onload',hXh='onlosecapture',xPh='onmessage',qTh='onmousedown',gVh='onmouseenter',bVh='onmouseleave',oTh='onmousemove',zRh='onmouseout',rTh='onmouseover',FPh='onmouseup',fVh='onmousewheel',czh='onmove',APh='onmoveend',yTh='onmovestart',FLh='onpaste',pZh='onpropertychange',x0h='onreadystatechange',iOh='onrepeat',kMh='onreset',ENh='onresize',wRh='onrowenter',bQh='onrowexit',aVh='onrowsdelete',fYh='onrowsinserted',dOh='onscroll',jOh='onselect',jXh='onselectstart',jMh='onstart',fBh='onstop',hOh='onsubmit',bOh='onunload',pAh='onzoom',poh='oopf;',lMh='opacity',qoh='opar;',nah='open',fOh='operator',roh='operp;',soh='oplus;',oxg='optgroup',cMh='optimum',dxg='option',u2h='or',toh='or;',voh='orarr;',woh='ord;',Enh='order',xoh='order;',yoh='orderof;',zoh='ordf',Aoh='ordf;',Boh='ordm',Coh='ordm;',bLh='org.xml.sax.',rCh='orient',pTh='orientation',eAh='origin',Doh='origof;',Eoh='oror;',aph='orslope;',bph='orv;',cph='oscr;',dph='oslash',eph='oslash;',fph='osol;',joh='other',nug='otherwise',gph='otilde',hph='otilde;',iph='otimes;',jph='otimesas;',mph='ouml',nph='ouml;',Cvg='outerproduct',Dqg='output',oph='ovbar;',gOh='overflow',o0h='overline-position',y0h='overline-thickness',ywg='p',CNh='panose-1',pph='par;',qph='para',rph='para;',sph='parallel;',l6h='param',tph='parsim;',uph='parsl;',vph='part;',ovg='partialdiff',heh='path',gSh='pathLength',fSh='pathlength',BMh='pattern',e1h='patternContentUnits',vZh='patternTransform',zVh='patternUnits',d1h='patterncontentunits',uZh='patterntransform',xVh='patternunits',xph='pcy;',yph='percnt;',zph='period;',Aph='permil;',Bph='perp;',Cph='pertenk;',Dph='pfr;',Eph='phi;',Fph='phiv;',aqh='phmmat;',cqh='phone;',v2h='pi',dqh='pi;',k6h='piece',oug='piecewise',seh='ping',eqh='pitchfork;',fqh='piv;',EJg='plaintext',gqh='planck;',hqh='planckh;',iqh='plankv;',uQh='playcount',c5h='plus',jqh='plus;',kqh='plusacir;',lqh='plusb;',nqh='pluscir;',oqh='plusdo;',pqh='plusdu;',qqh='pluse;',rqh='plusmn',sqh='plusmn;',tqh='plussim;',uqh='plustwo;',vqh='pm;',oYh='pointer-events',wqh='pointint;',dIh='points',pQh='pointsAtX',tQh='pointsAtY',nQh='pointsAtZ',oQh='pointsatx',qQh='pointsaty',mQh='pointsatz',ysg='polygon',wtg='polyline',yqh='popf;',yHh='poster',zqh='pound',Aqh='pound;',m6h='power',Bqh='pr;',Cqh='prE;',Dqh='prap;',Eqh='prcue;',y3h='pre',Fqh='pre;',arh='prec;',brh='precapprox;',drh='preccurlyeq;',erh='preceq;',frh='precnapprox;',grh='precneqq;',hrh='precnsim;',irh='precsim;',xtg='prefetch',vXh='preserveAlpha',c1h='preserveAspectRatio',uXh='preservealpha',b1h='preserveaspectratio',jrh='prime;',Eqg='primes',krh='primes;',qYh='primitiveUnits',pYh='primitiveunits',lrh='prnE;',mrh='prnap;',orh='prnsim;',prh='prod;',zsg='product',qrh='profalar;',CMh='profile',rrh='profline;',srh='profsurf;',ytg='progress',oIh='prompt',trh='prop;',urh='propto;',vrh='prsim;',ztg='prsubset',wrh='prurel;',xrh='pscr;',zrh='psi;',Arh='puncsp;',x1h='q',Brh='qfr;',Crh='qint;',Drh='qopf;',Erh='qprime;',Frh='qscr;',ash='quaternions;',bsh='quatint;',csh='quest;',esh='questeq;',fsh='quot',gsh='quot;',Atg='quotient',uSg='r',hsh='rAarr;',ish='rArr;',jsh='rAtail;',ksh='rBarr;',lsh='rHar;',msh='race;',nsh='racute;',wwg='radialGradient',vwg='radialgradient',psh='radic;',iSh='radiogroup',gKh='radius',qsh='raemptyv;',rsh='rang;',ssh='rangd;',tsh='range;',ush='rangle;',vsh='raquo',wsh='raquo;',xsh='rarr;',ysh='rarrap;',Bsh='rarrb;',Csh='rarrbfs;',Dsh='rarrc;',Esh='rarrfs;',Fsh='rarrhk;',ath='rarrlp;',bth='rarrpl;',cth='rarrsim;',dth='rarrtl;',eth='rarrw;',gth='ratail;',hth='ratio;',pug='rationals',ith='rationals;',jth='rbarr;',kth='rbbrk;',lth='rbrace;',mth='rbrack;',nth='rbrke;',oth='rbrksld;',pth='rbrkslu;',rth='rcaron;',sth='rcedil;',tth='rceil;',uth='rcub;',vth='rcy;',wth='rdca;',xth='rdldhar;',yth='rdquo;',zth='rdquor;',Ath='rdsh;',uOh='readonly',f5h='real',Cth='real;',Dth='realine;',Eth='realpart;',n6h='reals',Fth='reals;',h5h='rect',auh='rect;',jfh='refX',Ffh='refY',Eeh='refx',ufh='refy',buh='reg',cuh='reg;',p5g='rel',g5h='reln',z3h='rem',yZh='rendering-intent',yNg='renesis',CKh='repeat',hSh='repeat-max',mSh='repeat-min',FVh='repeat-start',gZh='repeat-template',gUh='repeatCount',yQh='repeatDur',fUh='repeatcount',xQh='repeatdur',fNh='replace',BOh='required',C0h='requiredExtensions',xZh='requiredFeatures',B0h='requiredextensions',wZh='requiredfeatures',EMh='restart',rKh='result',A5g='rev',duh='rfisht;',euh='rfloor;',fuh='rfr;',huh='rhard;',iuh='rharu;',juh='rharul;',kuh='rho;',luh='rhov;',muh='rightarrow;',nuh='rightarrowtail;',ouh='rightharpoondown;',puh='rightharpoonup;',quh='rightleftarrows;',suh='rightleftharpoons;',tuh='rightrightarrows;',uuh='rightsquigarrow;',vuh='rightthreetimes;',wuh='ring;',xuh='risingdotseq;',yuh='rlarr;',zuh='rlhar;',Auh='rlm;',Buh='rmoust;',Duh='rmoustache;',Euh='rnmid;',Fuh='roang;',avh='roarr;',bvh='robrk;',bih='role',i5h='root',cvh='ropar;',dvh='ropf;',evh='roplus;',fLh='rotate',fvh='rotimes;',yOh='rowalign',wOh='rowlines',ahh='rows',nSh='rowspacing',FMh='rowspan',x2h='rp',gvh='rpar;',ivh='rpargt;',jvh='rppolint;',gLh='rquote',kvh='rrarr;',lvh='rsaquo;',mvh='rscr;',nvh='rsh;',eLh='rspace',ovh='rsqb;',pvh='rsquo;',qvh='rsquor;',tZg='rt',rvh='rthree;',tvh='rtimes;',uvh='rtri;',vvh='rtrie;',wvh='rtrif;',xvh='rtriltri;',AGg='ruby',d5h='rule',fth='rules',yvh='ruluhar;',EZg='rx',zvh='rx;',j0g='ry',oOg='s',fPg='s:',Avh='sacute;',l5h='samp',aNh='sandbox',Bvh='sbquo;',Cvh='sc;',Evh='scE;',iwg='scalarproduct',osh='scale',Fvh='scap;',awh='scaron;',bwh='sccue;',cwh='sce;',dwh='scedil;',pJh='scheme',ewh='scirc;',fwh='scnE;',gwh='scnap;',hwh='scnsim;',dsh='scope',zIh='scoped',lwh='scpolint;',hIg='script',eUh='scriptlevel',wXh='scriptminsize',g1h='scriptsizemultiplier',lUh='scrolldelay',wQh='scrolling',mwh='scsim;',nwh='scy;',n5h='sdev',owh='sdot;',pwh='sdotb;',qwh='sdote;',rwh='seArr;',xOh='seamless',swh='searhk;',twh='searr;',uwh='searrow;',B3h='sec',j5h='sech',wwh='sect',xwh='sect;',Bsg='section',vgh='seed',xvg='select',vOh='selected',zQh='selection',Btg='selector',qug='semantics',ywh='semi;',F3h='sep',AQh='separator',lSh='separators',zwh='seswar;',b4h='set',Asg='setdiff',Awh='setminus;',Bwh='setmn;',Cwh='sext;',Dwh='sfr;',Ewh='sfrown;',yrh='shape',eZh='shape-rendering',Fwh='sharp;',bxh='shchcy;',cxh='shcy;',dxh='shortmid;',exh='shortparallel;',vSh='show',fxh='shy',gxh='shy;',hxh='sigma;',ixh='sigmaf;',jxh='sigmav;',kxh='sim;',mxh='simdot;',nxh='sime;',oxh='simeq;',pxh='simg;',qxh='simgE;',rxh='siml;',sxh='simlE;',txh='simne;',uxh='simplus;',vxh='simrarr;',E3h='sin',k5h='sinh',kgh='size',xxh='slarr;',nrh='slope',o6h='small',yxh='smallsetminus;',zxh='smashp;',Axh='smeparsl;',Bxh='smid;',Cxh='smile;',Dxh='smt;',Exh='smte;',Fxh='softcy;',ayh='sol;',cyh='solb;',dyh='solbar;',Dug='solidcolor',eyh='sopf;',Fqg='source',CQh='space',erg='spacer',DMh='spacing',fyh='spades;',gyh='spadesuit;',lhh='span',hyh='spar;',xXh='specification',CZh='specularConstant',AZh='specularExponent',BZh='specularconstant',zZh='specularexponent',Ash='speed',BVh='spreadMethod',AVh='spreadmethod',iyh='sqcap;',jyh='sqcup;',kyh='sqsub;',lyh='sqsube;',nyh='sqsubset;',oyh='sqsubseteq;',pyh='sqsup;',qyh='sqsupe;',ryh='sqsupset;',syh='sqsupseteq;',tyh='squ;',uyh='square;',vyh='squarf;',wyh='squf;',yyh='srarr;',f6g='src',zyh='sscr;',Ayh='ssetmn;',Byh='ssmile;',Cyh='sstarf;',eNh='standby',Dyh='star;',Eyh='starf;',guh='start',kUh='startOffset',jUh='startoffset',iIh='startup',bWh='stdDeviation',aWh='stddeviation',qth='stemh',Bth='stemv',whh='step',iUh='stitchTiles',hUh='stitchtiles',m5h='stop',kSh='stop-color',cWh='stop-opacity',Fyh='straightepsilon;',azh='straightphi;',zOh='stretchy',arg='strike',l1h='strikethrough-position',m1h='strikethrough-thickness',eJh='string',bzh='strns;',AJh='stroke',FZh='stroke-dasharray',u0h='stroke-dashoffset',uYh='stroke-linecap',fZh='stroke-linejoin',v0h='stroke-miterlimit',wYh='stroke-opacity',EVh='stroke-width',brg='strong',BHg='style',A3h='sub',dzh='sub;',ezh='subE;',fzh='subdot;',gzh='sube;',hzh='subedot;',izh='submult;',jzh='subnE;',kzh='subne;',lzh='subplus;',mzh='subrarr;',vYh='subscriptshift',frg='subset',ozh='subset;',pzh='subseteq;',qzh='subseteqq;',rzh='subsetneq;',szh='subsetneqq;',tzh='subsim;',uzh='subsub;',vzh='subsup;',wzh='succ;',xzh='succapprox;',Azh='succcurlyeq;',Bzh='succeq;',Czh='succnapprox;',Dzh='succneqq;',Ezh='succnsim;',Fzh='succsim;',D3h='sum',aAh='sum;',bNh='summary',bAh='sung;',a4h='sup',cAh='sup1',dAh='sup1;',fAh='sup2',gAh='sup2;',hAh='sup3',iAh='sup3;',jAh='sup;',kAh='supE;',lAh='supdot;',mAh='supdsub;',nAh='supe;',oAh='supedot;',EZh='superscriptshift',qAh='suphsub;',rAh='suplarr;',sAh='supmult;',tAh='supnE;',uAh='supne;',vAh='supplus;',wAh='supset;',xAh='supseteq;',yAh='supseteqq;',zAh='supsetneq;',BAh='supsetneqq;',CAh='supsim;',DAh='supsub;',EAh='supsup;',DVh='surfaceScale',CVh='surfacescale',C3h='svg',FAh='swArr;',aBh='swarhk;',bBh='swarr;',cBh='swarrow;',crg='switch',dBh='swnwar;',drg='symbol',vQh='symmetric',tYh='systemLanguage',sYh='systemlanguage',eBh='szlig',gBh='szlig;',tOh='tabindex',cwg='table',dUh='tableValues',cUh='tablevalues',d4h='tan',s5h='tanh',lGh='target',hBh='target;',uMh='targetX',wMh='targetY',tMh='targetx',vMh='targety',iBh='tau;',FBg='tbody',grg='tbreak',jBh='tbrk;',kBh='tcaron;',lBh='tcedil;',mBh='tcy;',fyg='td',nBh='tdot;',oBh='telrec;',sOh='template',Csg='tendsto',Cdh='text',FTh='text-anchor',dZh='text-decoration',mYh='text-rendering',aSh='textLength',Dtg='textPath',qHg='textarea',FRh='textlength',Ctg='textpath',vCg='tfoot',pBh='tfr;',qyg='th',kCg='thead',rBh='there4;',sBh='therefore;',tBh='theta;',uBh='thetasym;',vBh='thetav;',wBh='thickapprox;',lYh='thickmathspace',xBh='thicksim;',oXh='thinmathspace',yBh='thinsp;',zBh='thkap;',ABh='thksim;',CBh='thorn',DBh='thorn;',EBh='tilde;',o5h='time',r6h='times',FBh='times;',aCh='timesb;',bCh='timesbar;',cCh='timesd;',dCh='tint;',fHg='title',u0g='to',eCh='toea;',fCh='top;',hCh='topbot;',iCh='topcir;',jCh='topf;',kCh='topfork;',lCh='tosa;',mCh='tprime;',uBg='tr',nCh='trade;',jQh='transform',rug='transpose',r5h='tref',oCh='triangle;',pCh='triangledown;',qCh='triangleleft;',sCh='trianglelefteq;',tCh='triangleq;',uCh='triangleright;',vCh='trianglerighteq;',wCh='tridot;',xCh='trie;',yCh='triminus;',zCh='triplus;',ACh='trisb;',BCh='tritime;',DCh='trpezium;',q5h='true',ECh='tscr;',FCh='tscy;',aDh='tshcy;',p6h='tspan',bDh='tstrok;',y2h='tt',cDh='twixt;',dDh='twoheadleftarrow;',eDh='twoheadrightarrow;',Bch='type',y1h='u',gZg='u1',BYg='u2',fDh='uArr;',gDh='uHar;',jDh='uacute',kDh='uacute;',lDh='uarr;',kxg='ublic',mDh='ubrcy;',nDh='ubreve;',oDh='ucirc',pDh='ucirc;',qDh='ucy;',rDh='udarr;',sDh='udblac;',uDh='udhar;',vDh='ufisht;',wDh='ufr;',xDh='ugrave',yDh='ugrave;',zDh='uharl;',ADh='uharr;',BDh='uhblk;',z2h='ul',CDh='ulcorn;',DDh='ulcorner;',FDh='ulcrop;',aEh='ultri;',bEh='umacr;',cEh='uml',dEh='uml;',z0h='underline-position',a1h='underline-thickness',sMh='unicode',sVh='unicode-bidi',nXh='unicode-range',s6h='union',tVh='units-per-em',rVh='unselectable',eEh='uogon;',fEh='uopf;',gEh='uparrow;',hEh='updownarrow;',iEh='upharpoonleft;',kEh='upharpoonright;',Dsg='uplimit',lEh='uplus;',mEh='upsi;',nEh='upsih;',oEh='upsilon;',pEh='upuparrows;',qEh='urcorn;',rEh='urcorner;',sEh='urcrop;',tEh='uring;',vEh='urtri;',wEh='uscr;',e4h='use',vFh='usemap',xEh='utdot;',yEh='utilde;',zEh='utri;',AEh='utrif;',BEh='uuarr;',CEh='uuml',DEh='uuml;',EEh='uwangle;',wVh='v-alphabetic',kQh='v-hanging',tXh='v-ideographic',nYh='v-mathematical',aFh='vArr;',bFh='vBar;',cFh='vBarv;',dFh='vDash;',cHh='valign',crh='value',xGh='values',lQh='valuetype',eFh='vangrt;',f4h='var',fFh='varepsilon;',Etg='variance',gFh='varkappa;',hFh='varnothing;',iFh='varphi;',jFh='varpi;',lFh='varpropto;',mFh='varr;',nFh='varrho;',oFh='varsigma;',pFh='vartheta;',qFh='vartriangleleft;',rFh='vartriangleright;',sFh='vcy;',tFh='vdash;',irg='vector',jwg='vectorproduct',uFh='vee;',wFh='veebar;',xFh='veeeq;',yFh='vellip;',zFh='verbar;',AMh='version',eSh='vert-adv-y',rXh='vert-origin-x',sXh='vert-origin-y',AFh='vert;',A0h='verythickmathspace',s0h='verythinmathspace',j1h='veryverythickmathspace',i1h='veryverythinmathspace',BFh='vfr;',u6h='video',t5h='view',zMh='viewBox',dSh='viewTarget',yMh='viewbox',cSh='viewtarget',bSh='visibility',t6h='vkern',xqh='vlink',CFh='vltri;',DFh='vopf;',EFh='vprop;',FFh='vrtri;',bGh='vscr;',nHh='vspace',cGh='vzigzag;',g4h='wbr',dGh='wcirc;',eGh='wedbar;',fGh='wedge;',gGh='wedgeq;',hGh='weierp;',iGh='wfr;',gdh='when',mqh='width',aGh='widths',jGh='wopf;',uVh='word-spacing',kGh='wp;',mGh='wr;',rdh='wrap',nGh='wreath;',vVh='writing-mode',oGh='wscr;',FSg='x',EOh='x-height',v1g='x1',a2g='x2',b0h='xChannelSelector',pGh='xcap;',a0h='xchannelselector',qGh='xcirc;',rGh='xcup;',sGh='xdtri;',tGh='xfr;',uGh='xhArr;',vGh='xharr;',yGh='xi;',zGh='xlArr;',AGh='xlarr;',hRg='xlink',yXh='xlink:actuate',AXh='xlink:arcrole',sSh='xlink:href',rSh='xlink:role',tSh='xlink:show',oUh='xlink:title',qSh='xlink:type',BGh='xmap;',sRg='xml',COh='xml:base',DOh='xml:lang',BQh='xml:space',CQg='xmlns',s1h='xmlns:',nUh='xmlns:xlink',sIg='xmp',CGh='xnis;',DGh='xodot;',EGh='xopf;',FGh='xoplus;',h4h='xor',aHh='xotime;',bHh='xrArr;',dHh='xrarr;',nih='xref',eHh='xscr;',fHh='xsqcup;',gHh='xuplus;',hHh='xutri;',iHh='xvee;',jHh='xwedge;',kTg='y',k1g='y1',F0g='y2',d0h='yChannelSelector',kHh='yacute',lHh='yacute;',mHh='yacy;',c0h='ychannelselector',oHh='ycirc;',pHh='ycy;',qHh='yen',rHh='yen;',sHh='yfr;',tHh='yicy;',uHh='yopf;',vHh='yscr;',lxg='ystem',wHh='yucy;',xHh='yuml',zHh='yuml;',vTg='z',AHh='zacute;',BHh='zcaron;',CHh='zcy;',DHh='zdot;',EHh='zeetrf;',FHh='zeta;',aIh='zfr;',bIh='zhcy;',cIh='zigrarr;',pSh='zoomAndPan',oSh='zoomandpan',eIh='zopf;',fIh='zscr;',gIh='zwj;',hIh='zwnj;',b3g='{',F9g='}',tsg='\u201D cannot be represented as XML 1.0.',eyg='\u201D is not serializable as XML 1.0.',nxg='\u201D without an explicit value seen. The attribute may be dropped by IE7.',rxg='\u201D.';var _,C7h=[0,-9223372036854775808],D7h=[16777216,0],E7h=[4294967295,9223372032559808512];
+function zdi(a){return (this==null?null:this)===(a==null?null:a)}
 function Adi(){return k$h}
 function Bdi(){return this.$H||(this.$H=++D8h)}
 function Cdi(){return (this.tM==v0i||this.tI==2?this.gC():F9h).b+zqg+idi(this.tM==v0i||this.tI==2?this.hC():this.$H||(this.$H=++D8h),4)}
@@ -7892,7 +9093,8 @@ function abi(){}
 _=abi.prototype=new xdi();_.zb=mbi;_.gC=nbi;_.tI=0;_.b=false;_.c=0;var obi;function dbi(){while((gbi(),obi).b>0){fbi(p9h(iji(obi,0),3))}}
 function ebi(){return a$h}
 function bbi(){}
-_=bbi.prototype=new xdi();_.gC=ebi;_.tI=7;function sbi(a){ybi();if(!tbi){tbi=fji(new eji())}gji(tbi,a)}
+_=bbi.prototype=new xdi();_.gC=ebi;_.tI=7;
+function sbi(a){ybi();if(!tbi){tbi=fji(new eji())}gji(tbi,a)}
 function ubi(){var a;if(tbi){for(a=zhi(new xhi(),tbi);a.a<a.b.bc();){p9h(Chi(a),4);dbi()}}}
 function vbi(){var a,b;b=null;if(tbi){for(a=zhi(new xhi(),tbi);a.a<a.b.bc();){p9h(Chi(a),4);b=null}}return b}
 function xbi(){__gwt_initHandlers(function(){},function(){return vbi()},function(){ubi()})}
@@ -8331,7 +9533,7 @@ function F0i(){}
 _=F0i.prototype=new y0i();_.gC=d1i;_.tI=41;function Cbi(){!!$stats&&$stats({moduleName:$moduleName,subSystem:iIh,evtGroup:jIh,millis:(new Date()).getTime(),type:kIh,className:lIh});Envjs.parseHtmlDocument=xni}
 __defineParser__=function gwtOnLoad(b,d,c){$moduleName=d;$moduleBase=c;if(b)try{Cbi()}catch(a){b(d)}else{Cbi()}}
 function v0i(){}
-var k$h=jci(mIh,nIh),b$h=jci(pIh,qIh),q$h=jci(mIh,rIh),g$h=jci(mIh,sIh),l$h=jci(mIh,tIh),E9h=jci(uIh,vIh),F9h=jci(uIh,wIh),D_h=ici(xIh,yIh),f$h=jci(mIh,AIh),dai=ici(cNh,BIh),s$h=jci(CIh,DIh),A$h=jci(CIh,EIh),F$h=jci(CIh,FIh),a$h=jci(pIh,aJh),i$h=jci(mIh,bJh),c$h=jci(mIh,cJh),A_h=ici(cNh,dJh),e$h=jci(mIh,fJh),d$h=jci(mIh,gJh),h$h=jci(mIh,hJh),B_h=ici(cNh,iJh),j$h=jci(mIh,jJh),p$h=jci(mIh,aUh),m$h=jci(mIh,kJh),n$h=jci(mIh,lJh),o$h=jci(mIh,mJh),r$h=jci(mIh,nJh),C_h=ici(xIh,oJh),C$h=jci(CIh,qJh),x$h=jci(CIh,rJh),E$h=jci(CIh,sJh),u$h=jci(CIh,tJh),t$h=jci(CIh,uJh),B$h=jci(CIh,vJh),v$h=jci(CIh,wJh),w$h=jci(CIh,xJh),y$h=jci(CIh,yJh),z$h=jci(CIh,zJh),D$h=jci(CIh,BJh),a_h=jci(CIh,CJh),b_h=jci(CIh,DJh),e_h=jci(CIh,EJh),c_h=jci(CIh,FJh),d_h=jci(CIh,aKh),f_h=jci(CIh,bKh),g_h=kci(cKh,dKh),h_h=kci(cKh,eKh),i_h=kci(cKh,hKh),w_h=jci(iKh,jKh),p_h=jci(iKh,kKh),k_h=jci(lKh,mKh),j_h=jci(lKh,nKh),m_h=jci(lKh,oKh),l_h=jci(lKh,pKh),n_h=jci(lKh,qKh),bai=ici(cNh,sKh),E_h=ici(tKh,uKh),o_h=jci(iKh,vKh),F_h=ici(tKh,wKh),q_h=jci(iKh,xKh),v_h=jci(iKh,yKh),r_h=jci(iKh,zKh),s_h=jci(iKh,AKh),t_h=jci(iKh,BKh),cai=ici(cNh,DKh),u_h=jci(iKh,EKh),aai=ici(tKh,FKh),x_h=jci(iKh,aLh),y_h=jci(bLh,cLh),z_h=jci(bLh,dLh);if (false) {  var __gwt_initHandlers = nu_validator_htmlparser_HtmlParser.__gwt_initHandlers;  nu_validator_htmlparser_HtmlParser.onScriptLoad(gwtOnLoad);}})();
+var k$h=jci(mIh,nIh),b$h=jci(pIh,qIh),q$h=jci(mIh,rIh),g$h=jci(mIh,sIh),l$h=jci(mIh,tIh),E9h=jci(uIh,vIh),F9h=jci(uIh,wIh),D_h=ici(xIh,yIh),f$h=jci(mIh,AIh),dai=ici(cNh,BIh),s$h=jci(CIh,DIh),A$h=jci(CIh,EIh),F$h=jci(CIh,FIh),a$h=jci(pIh,aJh),i$h=jci(mIh,bJh),c$h=jci(mIh,cJh),A_h=ici(cNh,dJh),e$h=jci(mIh,fJh),d$h=jci(mIh,gJh),h$h=jci(mIh,hJh),B_h=ici(cNh,iJh),j$h=jci(mIh,jJh),p$h=jci(mIh,aUh),m$h=jci(mIh,kJh),n$h=jci(mIh,lJh),o$h=jci(mIh,mJh),r$h=jci(mIh,nJh),C_h=ici(xIh,oJh),C$h=jci(CIh,qJh),x$h=jci(CIh,rJh),E$h=jci(CIh,sJh),u$h=jci(CIh,tJh),t$h=jci(CIh,uJh),B$h=jci(CIh,vJh),v$h=jci(CIh,wJh),w$h=jci(CIh,xJh),y$h=jci(CIh,yJh),z$h=jci(CIh,zJh),D$h=jci(CIh,BJh),a_h=jci(CIh,CJh),b_h=jci(CIh,DJh),e_h=jci(CIh,EJh),c_h=jci(CIh,FJh),d_h=jci(CIh,aKh),f_h=jci(CIh,bKh),g_h=kci(cKh,dKh),h_h=kci(cKh,eKh),i_h=kci(cKh,hKh),w_h=jci(iKh,jKh),p_h=jci(iKh,kKh),k_h=jci(lKh,mKh),j_h=jci(lKh,nKh),m_h=jci(lKh,oKh),l_h=jci(lKh,pKh),n_h=jci(lKh,qKh),bai=ici(cNh,sKh),E_h=ici(tKh,uKh),o_h=jci(iKh,vKh),F_h=ici(tKh,wKh),q_h=jci(iKh,xKh),v_h=jci(iKh,yKh),r_h=jci(iKh,zKh),s_h=jci(iKh,AKh),t_h=jci(iKh,BKh),cai=ici(cNh,DKh),u_h=jci(iKh,EKh),aai=ici(tKh,FKh),x_h=jci(iKh,aLh),y_h=jci(bLh,cLh),z_h=jci(bLh,dLh);if (true) {  var __gwt_initHandlers = function(){};  }})();
 /**
 * DOMParser
 */
@@ -8340,21 +9542,24 @@ __defineParser__(function(e){
     console.log('Error loading html 5 parser implementation');
 }, 'nu_validator_htmlparser_HtmlParser', '');
 
-DOMParser = function(principle, documentURI, baseURI){};
+/*DOMParser = function(principle, documentURI, baseURI){};
 __extend__(DOMParser.prototype,{
     parseFromString: function(xmlstring, mimetype){
-        var xmldoc = new DOMImplementation().createDocument('','',null);
+        //console.log('DOMParser.parseFromString %s', mimetype);
+        var xmldoc = new Document(new DOMImplementation());
         return XMLParser.parseDocument(xmlstring, xmldoc, mimetype);
     }
-});
+});*/
 
-XMLParser = {};
 XMLParser.parseDocument = function(xmlstring, xmldoc, mimetype){
+    //console.log('XMLParser.parseDocument');
     var tmpdoc = new Document(new DOMImplementation()),
         parent,
-        importedNode;
+        importedNode,
+        tmpNode;
         
     if(mimetype && mimetype == 'text/xml'){
+        //console.log('mimetype: text/xml');
         tmpdoc.baseURI = 'http://envjs.com/xml';
         xmlstring = '<html><head></head><body>'+
             '<envjs_1234567890 xmlns="envjs_1234567890">'
@@ -8369,43 +9574,95 @@ XMLParser.parseDocument = function(xmlstring, xmldoc, mimetype){
     }
     
     while(xmldoc.firstChild != null){
-        xmldoc.removeChild( xmldoc.firstChild );
+        tmpNode = xmldoc.removeChild( xmldoc.firstChild );
+        delete tmpNode;
     }
     while(parent.firstChild != null){
-        importedNode = xmldoc.importNode( 
-            parent.removeChild( parent.firstChild ), true);
-        xmldoc.appendChild( importedNode );   
+        tmpNode  = parent.removeChild( parent.firstChild );
+        importedNode = xmldoc.importNode( tmpNode, true);
+        xmldoc.appendChild( importedNode );
+        delete tmpNode;
     }
+    delete tmpdoc,
+           xmlstring;
     return xmldoc;
 };
 
-HTMLParser = {};
+var __fragmentCache__ = {length:0},
+    __cachable__ = 255;
+
 HTMLParser.parseDocument = function(htmlstring, htmldoc){
-    Envjs.parseHtmlDocument(htmlstring, htmldoc, false, null, null);  
+    //console.log('HTMLParser.parseDocument %s', htmldoc.async);
+    htmldoc.parsing = true;
+    Envjs.parseHtmlDocument(htmlstring, htmldoc, htmldoc.async, null, null);  
     //Envjs.wait(-1);
     return htmldoc;
 };
-HTMLParser.parseFragment = function(htmlstring, fragment){
+HTMLParser.parseFragment = function(htmlstring, element){
+    //console.log('HTMLParser.parseFragment')
     // fragment is allowed to be an element as well
-    var tmpdoc = new HTMLDocument(new DOMImplementation()),
+    var tmpdoc,
         parent,
-        importedNode;
-    
-    Envjs.parseHtmlDocument(htmlstring,tmpdoc, false, null,null);
-    
-    parent = tmpdoc.body;
-    while(fragment.firstChild != null){
-        fragment.removeChild( fragment.firstChild );
+        importedNode,
+        tmpNode,
+        length,
+        i,
+        docstring;
+    //console.log('parsing fragment: %s', htmlstring);
+    //console.log('__fragmentCache__.length %s', __fragmentCache__.length)
+    if( htmlstring.length > __cachable__ && htmlstring in __fragmentCache__){
+        tmpdoc = __fragmentCache__[htmlstring];
+    }else{
+        //console.log('parsing html fragment \n%s', htmlstring);
+        tmpdoc = new HTMLDocument(new DOMImplementation());
+        //preserves leading white space
+        docstring = '<html><head></head><body>'+
+            '<envjs_1234567890 xmlns="envjs_1234567890">'
+                +htmlstring+
+            '</envjs_1234567890>'+
+        '</body></html>';
+        Envjs.parseHtmlDocument(docstring,tmpdoc, false, null,null);
+        if(htmlstring.length > __cachable__ ){
+            tmpdoc.normalizeDocument();
+            __fragmentCache__[htmlstring] = tmpdoc;
+            __fragmentCache__.length += htmlstring.length;
+            tmpdoc.cached = true;
+        }else{
+            tmpdoc.cached = false;
+        }
     }
-    while(parent.firstChild != null){
-        importedNode = fragment.importNode( 
-            parent.removeChild( parent.firstChild ), true);
-        fragment.appendChild( importedNode );   
+    
+    //parent is envjs_1234567890 element
+    parent = tmpdoc.body.childNodes[0];
+    while(element.firstChild != null){
+        //zap the elements children so we can import
+        tmpNode = element.removeChild( element.firstChild );
+        delete tmpNode;
     }
-    //Mark for garbage collection
-    tmpdoc = null;    
-    return fragment;
+    if(tmpdoc.cached){
+        length = parent.childNodes.length;
+        for(i=0;i<length;i++){
+            importedNode = element.importNode( parent.childNodes[i], true );
+            element.appendChild( importedNode );  
+        }
+    }else{
+        while(parent.firstChild != null){
+            tmpNode  = parent.removeChild( parent.firstChild );
+            importedNode = element.importNode( tmpNode, true);
+            element.appendChild( importedNode );
+            delete tmpNode;
+        }
+        delete tmpdoc;
+        delete htmlstring;
+    }
+    
+    // console.log('finished fragment: %s', element.outerHTML);
+    return element;
 };
+
+var __clearFragmentCache__ = function(){
+    __fragmentCache__ = {};
+}
 
 
 /**
@@ -8415,6 +9672,7 @@ HTMLParser.parseFragment = function(htmlstring, fragment){
  */
 __extend__(Document.prototype, {
     loadXML : function(xmlString) {
+        //console.log('Parser::Document.loadXML');
         // create Document
         if(this === document){
             //$debug("Setting internal window.document");
@@ -8440,84 +9698,162 @@ __extend__(Document.prototype, {
 __extend__(HTMLDocument.prototype,{
 
     open : function(){ 
+        //console.log('opening doc for write.'); 
         this._open = true;  
         this._writebuffer = [];
     },
-    close : function(){ 
-        if(!!this._open){
-            new HTMLParser().parseFromString(this, this._writebuffer.join('\n'));
-            delete this._open;
-            delete this._writebuffer;
+    close : function(){
+        //console.log('closing doc.'); 
+        if(this._open){
+            HTMLParser.parseDocument(this._writebuffer.join('\n'), this);
+            this._open = false;
+            this._writebuffer = null;
+            //console.log('finished writing doc.');
         }
     },
     write: function(htmlstring){ 
-         this._writebuffer = [htmlstring];
+        //console.log('writing doc.'); 
+        if(this._open)
+            this._writebuffer = [htmlstring];
     },
     writeln: function(htmlstring){ 
-        this._writebuffer.push(htmlstring); 
+        if(this.open)
+            this._writebuffer.push(htmlstring); 
     }
     
 });
 
 var __elementPopped__ = function(ns, name, node){
-    //console.log('error loading html element %s %s %s %e', ns, name, node);
+    //console.log('popped html element %s %s %s', ns, name, node);
     var doc = node.ownerDocument,
         okay,
         event;
-    // SMP: subtle issue here: we're currently getting two kinds of script nodes from the html5 parser.
-    // The "fake" nodes come with a type of undefined. The "real" nodes come with the type that's given,
-    // or null if not given. So the following check has the side-effect of ignoring the "fake" nodes. So
-    // something to watch for if this code changes.
-    var type = ( node.type === null ) ? "text/javascript" : node.type;
-    try{
-        if(node.nodeName.toLowerCase() == 'script' && type == "text/javascript"){
-            //$env.debug("element popped: script\n"+node.xml);
-            // unless we're parsing in a window context, don't execute scripts
-            if (doc.toString() === '[object HTMLDocument]'){
-                okay = Envjs.loadLocalScript(node, null);
-                //console.log('loaded script? %s', okay);
-                // only fire event if we actually had something to load
-                if (node.src && node.src.length > 0){
-                    event = doc.createEvent('HTMLEvents');
-                    event.initEvent( okay ? "load" : "error", false, false );
-                    node.dispatchEvent( event, false );
-                }
-            }
-        }
-        else if (node.nodeName.toLowerCase() == 'frame' ||
-                 node.nodeName.toLowerCase() == 'iframe'   ){
-            
-            if (node.src && node.src.length > 0){
-                //console.log("getting content document for (i)frame from %s", node.src);
-    
-                Envjs.loadFrame(node, Envjs.location(node.src));
-    
-                event = doc.createEvent('HTMLEvents');
-                event.initEvent("load", false, false);
-                node.dispatchEvent( event, false );
-            }
-        }
-        else if (node.nodeName.toLowerCase() == 'link'){
-            //$env.debug("element popped: link\n"+node.xml);
-            if (node.href && node.href.length > 0){
-                // don't actually load anything, so we're "done" immediately:
-                event = doc.createEvent('HTMLEvents');
-                event.initEvent("load", false, false);
-                node.dispatchEvent( event, false );
-            }
-        }
-        else if (node.nodeName.toLowerCase() == 'img'){
-            //$env.debug("element popped: img \n"+node.xml);
-            if (node.src && node.src.length > 0){
-                // don't actually load anything, so we're "done" immediately:
-                event = doc.createEvent('HTMLEvents');
-                event.initEvent("load", false, false);
-                node.dispatchEvent( event, false );
-            }
-        }
-    }catch(e){
-        console.log('error loading html element %s %s %s %e', ns, name, node, e.toString());
-    }
+    switch(doc.parsing){
+        case false:
+            //innerHTML so dont do loading patterns for parsing
+            break;
+        case true:
+            switch(doc+''){
+                case '[object XMLDocument]':
+                    break;
+                case '[object HTMLDocument]':
+                    switch(node.namespaceURI){
+                        case "http://n.validator.nu/placeholder/":
+                            break;
+                        case null:
+                        case "":
+                        case "http://www.w3.org/1999/xhtml":
+                            switch(name.toLowerCase()){
+                                case 'script':
+                                    try{
+                                        okay = Envjs.loadLocalScript(node, null);
+                                        // console.log('loaded script? %s %s', node.uuid, okay);
+                                        // only fire event if we actually had something to load
+                                        if (node.src && node.src.length > 0){
+                                            event = doc.createEvent('HTMLEvents');
+                                            event.initEvent( okay ? "load" : "error", false, false );
+                                            node.dispatchEvent( event, false );
+                                        }
+                                    }catch(e){
+                                        console.log('error loading html element %s %s %s %e', ns, name, node, e.toString());
+                                    }
+                                    break;
+                                case 'frame':
+                                case 'iframe':
+                                    try{
+                                        if (node.src && node.src.length > 0){
+                                            //console.log("getting content document for (i)frame from %s", node.src);
+                                            Envjs.loadFrame(node, Envjs.uri(node.src));
+                                            event = node.ownerDocument.createEvent('HTMLEvents');
+                                            event.initEvent("load", false, false);
+                                            node.dispatchEvent( event, false );
+                                        }else{
+                                            //console.log('src/parser/htmldocument: triggering frame load (no src)');
+                                        }
+                                    }catch(e){
+                                        console.log('error loading html element %s %s %s %e', ns, name, node, e.toString());
+                                    }
+                                    break;
+                                case 'link':
+                                    if (node.href && node.href.length > 0){
+                                        // don't actually load anything, so we're "done" immediately:
+                                        event = doc.createEvent('HTMLEvents');
+                                        event.initEvent("load", false, false);
+                                        node.dispatchEvent( event, false );
+                                    }
+                                    break;
+                                case 'img':
+                                    if (node.src && node.src.length > 0){
+                                        // don't actually load anything, so we're "done" immediately:
+                                        event = doc.createEvent('HTMLEvents');
+                                        event.initEvent("load", false, false);
+                                        node.dispatchEvent( event, false );
+                                    }
+                                    break;
+                                case 'html':
+                                    //console.log('html popped');
+                                    doc.parsing = false;
+                                    //DOMContentLoaded event
+                                    try{
+                                        if(doc.createEvent){
+                                            event = doc.createEvent('Events');
+                                            event.initEvent("DOMContentLoaded", false, false);
+                                            doc.dispatchEvent( event, false );
+                                        }
+                                    }catch(e){
+                                        console.log('%s', e);
+                                    }
+                                    try{
+                                        if(doc.createEvent){
+                                            event = doc.createEvent('HTMLEvents');
+                                            event.initEvent("load", false, false);
+                                            doc.dispatchEvent( event, false );
+                                        }
+                                    }catch(e){
+                                        console.log('%s', e);
+                                    }
+                                    
+                                    try{
+                                        if(doc.parentWindow){
+                                            event = doc.createEvent('HTMLEvents');
+                                            event.initEvent("load", false, false);
+                                            doc.parentWindow.dispatchEvent( event, false );
+                                        }
+                                    }catch(e){
+                                        console.log('%s', e);
+                                    }
+                                    try{
+                                        if(doc === window.document){
+                                            //console.log('triggering window.load')
+                                            event = doc.createEvent('HTMLEvents');
+                                            event.initEvent("load", false, false);
+                                            try{
+                                                window.dispatchEvent( event, false );
+                                            }catch(e){
+                                                console.log('%s', e);
+                                            }
+                                        }
+                                    }catch(e){
+                                        //console.log('%s', e);
+                                        //swallow
+                                    }
+                                default:
+                                    if(node.getAttribute('onload')){
+                                        //console.log('%s onload', node);
+                                        node.onload();
+                                    }
+                                    break;
+                            }//switch on name
+                        default:
+                            break;
+                    }//switch on ns
+                    break;
+                default: 
+                    console.log('element popped: %s %s', ns, name, node.ownerDocument+'');
+            }//switch on doc type
+        default:
+            break;
+    }//switch on parsing
 };
 
 __extend__(HTMLElement.prototype,{
@@ -8534,277 +9870,23 @@ __extend__(HTMLElement.prototype,{
  */
 
 })();
-
-/**
- * @author thatcher
- */
-var Console,
-    console;
 /*
- * Envjs console.1.1.rc3 
+ * Envjs xhr.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
- */
-
-(function(){
-
-
-
-
-/**
- * @author thatcher
  * 
- * borrowed-ish with love from firebug-lite
+ * Parts of the implementation originally written by Yehuda Katz.
+ * 
+ * This file simply provides the global definitions we need to 
+ * be able to correctly implement to core browser (XML)HTTPRequest 
+ * interfaces.
  */
-Console = function(module){
-    var $level,
-        $logger,
-        $null = function(){};
-    
-    
-    if(Envjs[module] && Envjs[module].loglevel){
-        $level = Envjs.module.loglevel;
-        $logger = {
-            log: function(level){
-                logFormatted(arguments, (module)+" ");
-            },
-            debug: $level>1 ? $null: function() {
-                logFormatted(arguments, (module)+" debug");
-            },
-            info: $level>2 ? $null:function(){
-                logFormatted(arguments, (module)+" info");
-            },
-            warn: $level>3 ? $null:function(){
-                logFormatted(arguments, (module)+" warning");
-            },
-            error: $level>4 ? $null:function(){
-                logFormatted(arguments, (module)+" error");
-            }
-        };
-    }else{
-        $logger = {
-            log: function(level){
-                logFormatted(arguments, "");
-            },
-            debug: $null,
-            info: $null,
-            warn: $null,
-            error: $null
-        };
-    }
-   
-    return $logger;
-};       
-
-console = new Console("console",1);
-    
-function logFormatted(objects, className)
-{
-    var html = [];
-
-    var format = objects[0];
-    var objIndex = 0;
-
-    if (typeof(format) != "string")
-    {
-        format = "";
-        objIndex = -1;
-    }
-
-    var parts = parseFormat(format);
-    for (var i = 0; i < parts.length; ++i)
-    {
-        var part = parts[i];
-        if (part && typeof(part) == "object")
-        {
-            var object = objects[++objIndex];
-            part.appender(object, html);
-        }
-        else
-            appendText(part, html);
-    }
-
-    for (var i = objIndex+1; i < objects.length; ++i)
-    {
-        appendText(" ", html);
-        
-        var object = objects[i];
-        if (typeof(object) == "string")
-            appendText(object, html);
-        else
-            appendObject(object, html);
-    }
-    
-    Envjs.log(html.join(' '));
-}
-
-function parseFormat(format)
-{
-    var parts = [];
-
-    var reg = /((^%|[^\\]%)(\d+)?(\.)([a-zA-Z]))|((^%|[^\\]%)([a-zA-Z]))/;    
-    var appenderMap = {s: appendText, d: appendInteger, i: appendInteger, f: appendFloat};
-
-    for (var m = reg.exec(format); m; m = reg.exec(format))
-    {
-        var type = m[8] ? m[8] : m[5];
-        var appender = type in appenderMap ? appenderMap[type] : appendObject;
-        var precision = m[3] ? parseInt(m[3]) : (m[4] == "." ? -1 : 0);
-
-        parts.push(format.substr(0, m[0][0] == "%" ? m.index : m.index+1));
-        parts.push({appender: appender, precision: precision});
-
-        format = format.substr(m.index+m[0].length);
-    }
-
-    parts.push(format);
-
-    return parts;
-}
-
-function escapeHTML(value)
-{
-   return value;
-}
-
-function objectToString(object)
-{
-    try
-    {
-        return object+"";
-    }
-    catch (exc)
-    {
-        return null;
-    }
-}
-
-// ********************************************************************************************
-
-function appendText(object, html)
-{
-    html.push(escapeHTML(objectToString(object)));
-}
-
-function appendNull(object, html)
-{
-    html.push(escapeHTML(objectToString(object)));
-}
-
-function appendString(object, html)
-{
-    html.push(escapeHTML(objectToString(object)));
-}
-
-function appendInteger(object, html)
-{
-    html.push(escapeHTML(objectToString(object)));
-}
-
-function appendFloat(object, html)
-{
-    html.push(escapeHTML(objectToString(object)));
-}
-
-function appendFunction(object, html)
-{
-    var reName = /function ?(.*?)\(/;
-    var m = reName.exec(objectToString(object));
-    var name = m ? m[1] : "function";
-    html.push(escapeHTML(name));
-}
-
-function appendObject(object, html)
-{
-    try
-    {
-        if (object == undefined)
-            appendNull("undefined", html);
-        else if (object == null)
-            appendNull("null", html);
-        else if (typeof object == "string")
-            appendString(object, html);
-        else if (typeof object == "number")
-            appendInteger(object, html);
-        else if (typeof object == "function")
-            appendFunction(object, html);
-        else if (object.nodeType == 1)
-            appendSelector(object, html);
-        else if (typeof object == "object")
-            appendObjectFormatted(object, html);
-        else
-            appendText(object, html);
-    }
-    catch (exc)
-    {
-    }
-}
-    
-function appendObjectFormatted(object, html)
-{
-    var text = objectToString(object);
-    var reObject = /\[object (.*?)\]/;
-
-    var m = reObject.exec(text);
-    html.push( m ? m[1] : text)
-}
-
-function appendSelector(object, html)
-{
-
-    html.push(escapeHTML(object.nodeName.toLowerCase()));
-    if (object.id)
-        html.push(escapeHTML(object.id));
-    if (object.className)
-        html.push(escapeHTML(object.className));
-
-}
-
-function appendNode(node, html)
-{
-    if (node.nodeType == 1)
-    {
-        html.push( node.nodeName.toLowerCase());
-
-        for (var i = 0; i < node.attributes.length; ++i)
-        {
-            var attr = node.attributes[i];
-            if (!attr.specified)
-                continue;
-            
-            html.push( attr.nodeName.toLowerCase(),escapeHTML(attr.nodeValue))
-        }
-
-        if (node.firstChild)
-        {
-            for (var child = node.firstChild; child; child = child.nextSibling)
-                appendNode(child, html);
-                
-            html.push( node.nodeName.toLowerCase());
-        }
-    }
-    else if (node.nodeType == 3)
-    {
-        html.push(escapeHTML(node.nodeValue));
-    }
-};
-
-/**
- * @author thatcher
- */
-
- })();/*
- * Envjs rhino-env.1.2.0.0 
- * Pure JavaScript Browser Environment
- * By John Resig <http://ejohn.org/> and the Envjs Team
- * Copyright 2008-2010 John Resig, under the MIT License
- */
-
-var __context__ = Packages.org.mozilla.javascript.Context.getCurrentContext();
+var Location,
+    XMLHttpRequest;
 
 /*
- * Envjs rhino-env.1.2.0.0 
+ * Envjs xhr.1.2.0.2 
  * Pure JavaScript Browser Environment
  * By John Resig <http://ejohn.org/> and the Envjs Team
  * Copyright 2008-2010 John Resig, under the MIT License
@@ -8831,389 +9913,1289 @@ function __extend__(a,b) {
     } return a;
 };
 /**
- * Writes message to system out
- * @param {Object} message
+ * @author john resig
  */
-Envjs.log = function(message){
-    print(message);
+//from jQuery
+function __setArray__( target, array ) {
+    // Resetting the length to 0, then using the native Array push
+    // is a super-fast way to populate an object with array-like properties
+    target.length = 0;
+    Array.prototype.push.apply( target, array );
 };
-
-Envjs.lineSource = function(e){
-    return e&&e.rhinoException?e.rhinoException.lineSource():"(line ?)";
-};
-
 /**
- * Rhino provides a very succinct 'sync'
- * @param {Function} fn
+ * @author ariel flesler
+ *    http://flesler.blogspot.com/2008/11/fast-trim-function-for-javascript.html 
+ * @param {Object} str
  */
-Envjs.sync = sync;
-
-
-/**
- * sleep thread for specified duration
- * @param {Object} millseconds
- */
-Envjs.sleep = function(millseconds){
-    java.lang.Thread.currentThread().sleep(millseconds);
+function __trim__( str ){
+    return (str || "").replace( /^\s+|\s+$/g, "" );
+    
 };
 
 /**
- * provides callback hook for when the system exits
+ * @todo: document
  */
-Envjs.onExit = function(callback){
-    var rhino = Packages.org.mozilla.javascript,
-        contextFactory =  __context__.getFactory(),
-        listener = new rhino.ContextFactory.Listener({
-            contextReleased: function(context){
-                if(context === __context__)
-                    console.log('context released', context);
-                contextFactory.removeListener(this);
-                if(callback)
-                    callback();
-            }
-        });
-    contextFactory.addListener(listener);
-};
-
-
-/**
- * resolves location relative to doc location
- * @param {Object} path
- * @param {Object} path
- * @param {Object} base
- */
-Envjs.location = function(path, base){
-    var protocol = new RegExp('(^file\:|^http\:|^https\:)'),
-        m = protocol.exec(path),
-        baseURI;
-    if(m&&m.length>1){
-        return (new java.net.URL(path).toString()+'')
-            .replace('file:/', 'file:///');;
-    }else if(base){
-        return (new java.net.URL(new java.net.URL(base), path)+'')
-            .replace('file:/', 'file:///');;
-    }else{
-        //return an absolute url from a url relative to the window location
-        //TODO: window should not be inlined here. this should be passed as a 
-        //      parameter to Envjs.location :DONE
-        if(document){
-            baseURI = document.baseURI;
-            if(baseURI == 'about:blank'){
-                baseURI = (java.io.File(path).toURL().toString()+'')
-                        .replace('file:/', 'file:///');
-                //console.log('baseURI %s', baseURI);
-                return baseURI;
-            }else{
-                base = baseURI.substring(0, baseURI.lastIndexOf('/'));
-                if(base.length > 0){
-                    return base + '/' + path;
-                }else{
-                    return (new java.io.File(path).toURL().toString()+'')
-                        .replace('file:/', 'file:///');
-                }
-            }
+__extend__(Document.prototype,{
+    load: function(url){
+        if(this.documentURI == 'about:html'){
+            this.location.assign(url);
+        }else if(this.documentURI == url){
+            this.location.reload(false);
         }else{
-            return (new java.io.File(path).toURL().toString()+'')
-                        .replace('file:/', 'file:///');
+            this.location.replace(url);
+        }
+    },
+    get location(){
+        return new Location(this.documentURI, this);
+    },
+    set location(url){
+        //very important or you will go into an infinite
+        //loop when creating a xml document
+        if(url)
+            this.location.replace(url);
+    }
+});
+
+
+HTMLFormElement.prototype.submit = function(){
+    var event = __submit__(this),
+        serialized,
+        xhr,
+        method,
+        action;
+    if(!event.cancelled){
+        serialized = __formSerialize__(this);
+        xhr = new XMLHttpRequest();
+        method = this.method !== ""?this.method:"GET";
+        action = this.action !== ""?this.action:this.ownerDocument.baseURI;
+        xhr.open(method, action, false);
+        xhr.send(data, false);
+        if(xhr.readyState === 4){
+            __exchangeHTMLDocument__(this.ownerDocument, xhr.responseText, url);
+        }
+    }   
+}
+/**
+ * Form Submissions
+ * 
+ * This code is borrow largely from jquery.params and jquery.form.js
+ * 
+ * formToArray() gathers form element data into an array of objects that can
+ * be passed to any of the following ajax functions: $.get, $.post, or load.
+ * Each object in the array has both a 'name' and 'value' property.  An example of
+ * an array for a simple login form might be:
+ *
+ * [ { name: 'username', value: 'jresig' }, { name: 'password', value: 'secret' } ]
+ *
+ * It is this array that is passed to pre-submit callback functions provided to the
+ * ajaxSubmit() and ajaxForm() methods.
+ *
+ * The semantic argument can be used to force form serialization in semantic order.
+ * This is normally true anyway, unless the form contains input elements of type='image'.
+ * If your form must be submitted with name/value pairs in semantic order and your form
+ * contains an input of type='image" then pass true for this arg, otherwise pass false
+ * (or nothing) to avoid the overhead for this logic.
+ *
+ *
+ * @name formToArray
+ * @param semantic true if serialization must maintain strict semantic ordering of elements (slower)
+ * @type Array<Object>
+ */
+var __formToArray__ = function(form, semantic) {
+    var array = [],
+        elements = semantic ? form.getElementsByTagName('*') : form.elements,
+        element,
+        i,j,imax, jmax,
+        name,
+        value;
+        
+    if (!elements) 
+        return array;
+    
+    imax = elements.length;
+    for(i=0; i < imax; i++) {
+        element = elements[i];
+        name = element.name;
+        if (!name) 
+            continue;
+
+        if (semantic && form.clk && element.type == "image") {
+            // handle image inputs on the fly when semantic == true
+            if(!element.disabled && form.clk == element)
+                array.push({
+                    name: name+'.x', 
+                    value: form.clk_x
+                },{
+                    name: name+'.y', 
+                    value: form.clk_y
+                });
+            continue;
+        }
+
+        value = __fieldValue__(element, true);
+        if (value && value.constructor == Array) {
+            jmax = value.length;
+            for(j=0; j < jmax; j++){
+                array.push({name: name, value: value[j]});
+            }
+        } else if (value !== null && typeof value != 'undefined'){
+            array.push({name: name, value: value});
+        }
+    }
+
+    if (!semantic && form.clk) {
+        // input type=='image' are not found in elements array! handle them here
+        elements = form.getElementsByTagName("input");
+        imax = imax=elements.length;
+        for(i=0; i < imax; i++) {
+            element = elements[i];
+            name = element.name;
+            if(name && !element.disabled && element.type == "image" && form.clk == input)
+                array.push(
+                    {name: name+'.x', value: form.clk_x}, 
+                    {name: name+'.y', value: form.clk_y});
+        }
+    }
+    return array;
+};
+
+
+/**
+ * Serializes form data into a 'submittable' string. This method will return a string
+ * in the format: name1=value1&amp;name2=value2
+ *
+ * The semantic argument can be used to force form serialization in semantic order.
+ * If your form must be submitted with name/value pairs in semantic order then pass
+ * true for this arg, otherwise pass false (or nothing) to avoid the overhead for
+ * this logic (which can be significant for very large forms).
+ *
+ *
+ * @name formSerialize
+ * @param semantic true if serialization must maintain strict semantic ordering of elements (slower)
+ * @type String
+ */
+var __formSerialize__ = function(form, semantic) {
+    //hand off to param for proper encoding
+    return __param__(__formToArray__(form, semantic));
+};
+
+
+/**
+ * Serializes all field elements inputs Array into a query string.
+ * This method will return a string in the format: name1=value1&amp;name2=value2
+ *
+ * The successful argument controls whether or not serialization is limited to
+ * 'successful' controls (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
+ * The default value of the successful argument is true.
+ *
+ *
+ * @name fieldSerialize
+ * @param successful true if only successful controls should be serialized (default is true)
+ * @type String
+ */
+var __fieldSerialize__ = function(inputs, successful) {
+    var array = [],
+        input,
+        name,
+        value,
+        i,j, imax, jmax;
+        
+    imax = inputs.length;
+    for(i=0; i<imax; i++){
+        input = inputs[i];
+        name = input.name;
+        if (!name) 
+            return;
+        value = __fieldValue__(input, successful);
+        if (value && value.constructor == Array) {
+            jmax = value.length;
+            for (j=0; j < max; j++){
+                array.push({
+                    name: name, 
+                    value: value[j]
+                });
+            }
+        }else if (value !== null && typeof value != 'undefined'){
+            array.push({
+                name: input.name, 
+                value: value
+            });
+        }
+    };
+    //hand off  for proper encoding
+    return __param__(array);
+};
+
+
+/**
+ * Returns the value(s) of the element in the matched set.  For example, consider the following form:
+ *
+ *
+ * The successful argument controls whether or not the field element must be 'successful'
+ * (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
+ * The default value of the successful argument is true.  If this value is false the value(s)
+ * for each element is returned.
+ *
+ * Note: This method *always* returns an array.  If no valid value can be determined the
+ *       array will be empty, otherwise it will contain one or more values.
+ *
+ *
+ * @name fieldValue
+ * @param Boolean successful true if only the values for successful controls 
+ *        should be returned (default is true)
+ * @type Array<String>
+ */
+var __fieldValues__ = function(inputs, successful) {
+    var i, 
+        imax = inputs.length,
+        element,
+        values = [],
+        value;
+    for (i=0; i < imax; i++) {
+        element = inputs[i];
+        value = __fieldValue__(element, successful);
+        if (value === null || typeof value == 'undefined' || 
+            (value.constructor == Array && !value.length))
+            continue;
+        value.constructor == Array ? 
+            Array.prototype.push(values, value) : 
+            values.push(value);
+    }
+    return values;
+};
+
+/**
+ * Returns the value of the field element.
+ *
+ * The successful argument controls whether or not the field element must be 'successful'
+ * (per http://www.w3.org/TR/html4/interact/forms.html#successful-controls).
+ * The default value of the successful argument is true.  If the given element is not
+ * successful and the successful arg is not false then the returned value will be null.
+ *
+ * Note: If the successful flag is true (default) but the element is not successful, the return will be null
+ * Note: The value returned for a successful select-multiple element will always be an array.
+ * Note: If the element has no value the return value will be undefined.
+ *
+ * @name fieldValue
+ * @param Element el The DOM element for which the value will be returned
+ * @param Boolean successful true if value returned must be for a successful controls (default is true)
+ * @type String or Array<String> or null or undefined
+ */
+var __fieldValue__ = function(element, successful) {
+    var name = element.name, 
+        type = element.type, 
+        tag = element.tagName.toLowerCase(),
+        index,
+        array,
+        options,
+        option,
+        one,
+        i, imax,
+        value;
+    if (typeof successful == 'undefined') successful = true;
+
+    if (successful && (!name || element.disabled || type == 'reset' || type == 'button' ||
+             (type == 'checkbox' || type == 'radio') &&  !element.checked || 
+             (type == 'submit' || type == 'image') && 
+             element.form && element.form.clk != element || tag == 'select' && 
+             element.selectedIndex == -1))
+            return null;
+
+    if (tag == 'select') {
+        index = element.selectedIndex;
+        if (index < 0) 
+            return null;
+        array = [];
+        options = element.options;
+        one = (type == 'select-one');
+        imax = (one ? index+1 : options.length);
+        i = (one ? index : 0);
+        for( i; i < imax; i++) {
+            option = options[i];
+            if (option.selected) {
+                value = option.value;
+                if (one) 
+                    return value;
+                array.push(value);
+            }
+        }
+        return array;
+    }
+    return element.value;
+};
+
+
+/**
+ * Clears the form data.  Takes the following actions on the form's input fields:
+ *  - input text fields will have their 'value' property set to the empty string
+ *  - select elements will have their 'selectedIndex' property set to -1
+ *  - checkbox and radio inputs will have their 'checked' property set to false
+ *  - inputs of type submit, button, reset, and hidden will *not* be effected
+ *  - button elements will *not* be effected
+ *
+ *
+ * @name clearForm
+ */
+var __clearForm__ = function(form) {
+    var i, 
+        j, jmax,
+        elements,
+        resetable = ['input','select','textarea'];
+    for(i=0; i<resetable.lenth; i++){
+        elements = form.getElementsByTagName(resetable[i]);
+        jmax = elements.length;
+        for(j=0;j<jmax;j++){
+            __clearField__(elements[j]);
         }
     }
 };
 
+/**
+ * Clears the selected form element.  Takes the following actions on the element:
+ *  - input text fields will have their 'value' property set to the empty string
+ *  - select elements will have their 'selectedIndex' property set to -1
+ *  - checkbox and radio inputs will have their 'checked' property set to false
+ *  - inputs of type submit, button, reset, and hidden will *not* be effected
+ *  - button elements will *not* be effected
+ *
+ * @name clearFields
+ */
+var __clearField__ = function(element) {
+    var type = element.type, 
+        tag = element.tagName.toLowerCase();
+    if (type == 'text' || type == 'password' || tag == 'textarea')
+        element.value = '';
+    else if (type == 'checkbox' || type == 'radio')
+        element.checked = false;
+    else if (tag == 'select')
+        element.selectedIndex = -1;
+};
+
+
+// Serialize an array of key/values into a query string
+var __param__= function( array ) {
+    var serialized = [];
+
+    // Serialize the key/values
+    for(i=0; i<array.length; i++){
+        serialized[ serialized.length ] = 
+            encodeURIComponent(array[i].name) + '=' + 
+            encodeURIComponent(array[i].value);
+    }
+
+    // Return the resulting serialization
+    return serialized.join("&").replace(/%20/g, "+");
+};
+ 
+/**
+ * @todo: document
+ */
+var HASH     = new RegExp('(\\#.*)'),
+    HOSTNAME = new RegExp('\/\/([^\:\/]+)'),
+    PATHNAME = new RegExp('(\/[^\\?\\#]*)'),
+    PORT     = new RegExp('\:(\\d+)\/'),
+    PROTOCOL = new RegExp('(^\\w*\:)'),
+    SEARCH   = new RegExp('(\\?[^\\#]*)');
+        
+
+Location = function(url, doc, history){
+    //console.log('Location url %s', url);
+    var $url = url
+        $document = doc?doc:null,
+        $history = history?history:null;
+    
+    return {
+        get hash(){
+            var m = HASH.exec($url);
+            return m&&m.length>1?m[1]:"";
+        },
+        set hash(hash){
+            $url = this.protocol + this.host + this.pathname + 
+                this.search + (hash.indexOf('#')===0?hash:"#"+hash);
+            if($history){
+                $history.add( $url, 'hash');
+            }
+        },
+        get host(){
+            return this.hostname + (this.port !== ""?":"+this.port:"");
+        },
+        set host(host){
+            $url = this.protocol + host + this.pathname + 
+                this.search + this.hash;
+            if($history){
+                $history.add( $url, 'host');
+            }
+            this.assign($url);
+        },
+        get hostname(){
+            var m = HOSTNAME.exec(this.href);
+            return m&&m.length>1?m[1]:"";
+        },
+        set hostname(hostname){
+            $url = this.protocol + hostname + ((this.port==="")?"":(":"+this.port)) +
+                 this.pathname + this.search + this.hash;
+            if($history){
+                $history.add( $url, 'hostname');
+            }
+            this.assign($url);
+        },
+        get href(){
+            return $url;
+        },
+        set href(url){
+            $url = url;  
+            if($history){
+                $history.add( $url, 'href');
+            }
+            this.assign($url);
+        },
+        get pathname(){
+            var m = this.href;
+            m = PATHNAME.exec(m.substring(m.indexOf(this.hostname)));
+            return m&&m.length>1?m[1]:"/";
+        },
+        set pathname(pathname){
+            $url = this.protocol + this.host + pathname + 
+                this.search + this.hash;
+            if($history){
+                $history.add( $url, 'pathname');
+            }
+            this.assign($url);
+        },
+        get port(){
+            var m = PORT.exec(this.href);
+            return m&&m.length>1?m[1]:"";
+        },
+        set port(port){
+            $url = this.protocol + this.hostname + ":"+port + this.pathname + 
+                this.search + this.hash;
+            if($history){
+                $history.add( $url, 'port');
+            }
+            this.assign($url);
+        },
+        get protocol(){
+            return this.href && PROTOCOL.exec(this.href)[0];
+        },
+        set protocol(protocol){
+            $url = protocol + this.host + this.pathname + 
+                this.search + this.hash;
+            if($history){
+                $history.add( $url, 'protocol');
+            }
+            this.assign($url);
+        },
+        get search(){
+            var m = SEARCH.exec(this.href);
+            return m&&m.length>1?m[1]:"";
+        },
+        set search(search){
+            $url = this.protocol + this.host + this.pathname + 
+                search + this.hash;
+            if($history){
+                $history.add( $url, 'search');
+            }
+            this.assign($url);
+        },
+        toString: function(){
+            return $url;
+        },
+        assign: function(url){
+            var _this = this,
+                xhr;
+            
+            //console.log('assigning %s',url);
+            $url = url;
+            //we can only assign if this Location is associated with a document
+            if($document){
+                //console.log("fetching %s (async? %s)", url, $document.async);
+                xhr = new XMLHttpRequest();
+                xhr.open("GET", url, $document.async);
+                
+                if($document.toString()=="[object HTMLDocument]"){
+                    //tell the xhr to not parse the document as XML
+                    //console.log("loading html document");
+                    xhr.onreadystatechange = function(){
+                        //console.log("readyState %s", xhr.readyState);
+                        if(xhr.readyState === 4){
+                            __exchangeHTMLDocument__($document, xhr.responseText, url);
+                        }    
+                    };
+                    xhr.send(null, false);
+                }else{
+                    //Treat as an XMLDocument
+                    xhr.onreadystatechange = function(){
+                        if(xhr.readyState === 4){
+                            $document = xhr.responseXML;
+                            $document.baseURI = $url;
+                            if($document.createEvent){
+                                event = $document.createEvent('Events');
+                                event.initEvent("DOMContentLoaded");
+                                $document.dispatchEvent( event, false );
+                            }
+                        }
+                    };
+                    xhr.send();
+                }
+                
+            };
+            
+        },
+        reload: function(forceget){
+            //for now we have no caching so just proxy to assign
+            //console.log('reloading %s',$url);
+            this.assign($url);
+        },
+        replace: function(url){
+            this.assign(url);
+        }
+    }
+};
+
+var __exchangeHTMLDocument__ = function(doc, text, url){
+    var html, head, title, body, event;
+    try{
+        doc.baseURI = url;
+        HTMLParser.parseDocument(text, doc);
+        Envjs.wait();
+    }catch(e){
+        console.log('parsererror %s', e);
+        try{
+            console.log('document \n %s', doc.documentElement.outerHTML);
+        }catch(ee){}
+        doc = new HTMLDocument(new DOMImplementation(), doc.ownerWindow);
+        html =    doc.createElement('html');
+        head =    doc.createElement('head');
+        title =   doc.createElement('title');
+        body =    doc.createElement('body');
+        title.appendChild(doc.createTextNode("Error"));
+        body.appendChild(doc.createTextNode(e+''));
+        head.appendChild(title);
+        html.appendChild(head);
+        html.appendChild(body);
+        doc.appendChild(html);
+        //console.log('default error document \n %s', doc.documentElement.outerHTML);
+        
+        //DOMContentLoaded event
+        if(doc.createEvent){
+            event = doc.createEvent('Events');
+            event.initEvent("DOMContentLoaded", false, false);
+            doc.dispatchEvent( event, false );
+            
+            event = doc.createEvent('HTMLEvents');
+            event.initEvent("load", false, false);
+            doc.dispatchEvent( event, false );
+        }
+        
+        //finally fire the window.onload event
+        //TODO: this belongs in window.js which is a event
+        //      event handler for DOMContentLoaded on document
+        
+        try{
+            if(doc === window.document){
+                console.log('triggering window.load')
+                event = doc.createEvent('HTMLEvents');
+                event.initEvent("load", false, false);
+                window.dispatchEvent( event, false );
+            }
+        }catch(e){
+            //console.log('window load event failed %s', e);
+            //swallow
+        }
+    }
+};
 /**
  * 
- * @param {Object} fn
- * @param {Object} onInterupt
+ * @class XMLHttpRequest
+ * @author Originally implemented by Yehuda Katz
+ * 
  */
-Envjs.runAsync = function(fn, onInterupt){
-    ////Envjs.debug("running async");
-    var running = true,
-        run = sync(function(){ 
-        //while happening only thing in this timer    
-        ////Envjs.debug("running timed function");
-        fn();
-    });
-    
-    try{
-        spawn(run);
-    }catch(e){
-        //Envjs.error("error while running async", e);
-        if(onInterrupt)
-            onInterrupt(e);
-    }
+
+// this implementation can be used without requiring a DOMParser
+// assuming you dont try to use it to get xml/html documents
+var domparser;
+
+XMLHttpRequest = function(){
+	this.headers = {};
+	this.responseHeaders = {};
+    this.aborted = false;//non-standard
 };
 
-/**
- * Used to write to a local file
- * @param {Object} text
- * @param {Object} url
- */
-Envjs.writeToFile = function(text, url){
-    //Envjs.debug("writing text to url : " + url);
-    var out = new java.io.FileWriter( 
-        new java.io.File( 
-            new java.net.URI(url.toString()))); 
-    out.write( text, 0, text.length );
-    out.flush();
-    out.close();
-};
-    
-/**
- * Used to write to a local file
- * @param {Object} text
- * @param {Object} suffix
- */
-Envjs.writeToTempFile = function(text, suffix){
-    //Envjs.debug("writing text to temp url : " + suffix);
-    // Create temp file.
-    var temp = java.io.File.createTempFile("envjs-tmp", suffix);
+// it would be nice if these were part of the standard but
+// they are not.
+XMLHttpRequest.UNSENT = 0;
+XMLHttpRequest.OPEN = 0;
+XMLHttpRequest.HEADERS_RECEIVED = 0;
+XMLHttpRequest.LOADING = 0;
+XMLHttpRequest.DONE = 4;
 
-    // Delete temp file when program exits.
-    temp.deleteOnExit();
-
-    // Write to temp file
-    var out = new java.io.FileWriter(temp);
-    out.write(text, 0, text.length);
-    out.close();
-    return temp.getAbsolutePath().toString()+'';
-};
-    
-
-/**
- * Used to delete a local file
- * @param {Object} url
- */
-Envjs.deleteFile = function(url){
-    var file = new java.io.File( new java.net.URI( url ) );
-    file["delete"]();
-};
-    
-/**
- * establishes connection and calls responsehandler
- * @param {Object} xhr
- * @param {Object} responseHandler
- * @param {Object} data
- */
-Envjs.connection = function(xhr, responseHandler, data){
-    var url = java.net.URL(xhr.url),
-        connection;
-    if ( /^file\:/.test(url) ) {
-        try{
-            if ( xhr.method == "PUT" ) {
-                var text =  data || "" ;
-                Envjs.writeToFile(text, url);
-            } else if ( xhr.method == "DELETE" ) {
-                Envjs.deleteFile(url);
-            } else {
-                connection = url.openConnection();
-                connection.connect();
-                //try to add some canned headers that make sense
-                
-                try{
-                    if(xhr.url.match(/html$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/html';
-                    }else if(xhr.url.match(/.xml$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/xml';
-                    }else if(xhr.url.match(/.js$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/javascript';
-                    }else if(xhr.url.match(/.json$/)){
-                        xhr.responseHeaders["Content-Type"] = 'application/json';
+XMLHttpRequest.prototype = {
+	open: function(method, url, async, user, password){ 
+        //console.log('openning xhr %s %s %s', method, url, async);
+		this.readyState = 1;
+		this.async = (async === false)?false:true;
+		this.method = method || "GET";
+		this.url = Envjs.uri(url);
+		this.onreadystatechange();
+	},
+	setRequestHeader: function(header, value){
+		this.headers[header] = value;
+	},
+	send: function(data, parsedoc/*non-standard*/){
+		var _this = this;
+        parsedoc = (parsedoc === undefined)?true:!!parsedoc;
+		function makeRequest(){
+            Envjs.connection(_this, function(){
+                if (!_this.aborted){
+                    var doc = null,
+                        domparser;
+                    // try to parse the document if we havent explicitly set a 
+                    // flag saying not to and if we can assure the text at least
+                    // starts with valid xml
+                    if ( parsedoc && _this.responseText.match(/^\s*</) ) {
+                        domparser = domparser||new DOMParser();
+                        try {
+                            //console.log("parsing response text into xml document");
+                            doc = domparser.parseFromString(_this.responseText+"", 'text/xml');
+                        } catch(e) {
+                            //Envjs.error('response XML does not appear to be well formed xml', e);
+                            console.log('parseerror \n%s', e);
+                            doc = document.implementation.createDocument('','error',null);
+                            doc.appendChild(doc.createTextNode(e+''));
+                        } 
                     }else{
-                        xhr.responseHeaders["Content-Type"] = 'text/plain';
+                        //Envjs.warn('response XML does not appear to be xml');
                     }
-                //xhr.responseHeaders['Last-Modified'] = connection.getLastModified();
-                //xhr.responseHeaders['Content-Length'] = headerValue+'';
-                //xhr.responseHeaders['Date'] = new Date()+'';*/
-                }catch(e){
-                    console.log('failed to load response headers',e);
+                    _this.__defineGetter__("responseXML", function(){
+                        return doc;
+                    });
                 }
-            }
-        }catch(e){
-            console.log('failed to open file %s %s', url, e);
-            connection = null;
-            xhr.readyState = 4;
-            xhr.statusText = "Local File Protocol Error";
-            xhr.responseText = "<html><head/><body><p>"+ e+ "</p></body></html>";
-        }
-    } else { 
-        connection = url.openConnection();
-        connection.setRequestMethod( xhr.method );
-        
-        // Add headers to Java connection
-        for (var header in xhr.headers){
-            connection.addRequestProperty(header+'', xhr.headers[header]+'');
-        }
-        
-        //write data to output stream if required
-        if(data&&data.length&&data.length>0){
-             if ( xhr.method == "PUT" || xhr.method == "POST" ) {
-                connection.setDoOutput(true);
-                var outstream = connection.getOutputStream(),
-                    outbuffer = new java.lang.String(data).getBytes('UTF-8');
-                
-                outstream.write(outbuffer, 0, outbuffer.length);
-                outstream.close();
-            }
-        }else{
-            connection.connect();
-        }
-    }
-    
-    if(connection){
-        try{
-            var respheadlength = connection.getHeaderFields().size();
-            // Stick the response headers into responseHeaders
-            for (var i = 0; i < respheadlength; i++) { 
-                var headerName = connection.getHeaderFieldKey(i); 
-                var headerValue = connection.getHeaderField(i); 
-                if (headerName)
-                    xhr.responseHeaders[headerName+''] = headerValue+'';
-            }
-        }catch(e){
-            Envjs.error('failed to load response headers',e);
-        }
-        
-        xhr.readyState = 4;
-        xhr.status = parseInt(connection.responseCode,10) || undefined;
-        xhr.statusText = connection.responseMessage || "";
-        
-        var contentEncoding = connection.getContentEncoding() || "utf-8",
-            baos = new java.io.ByteArrayOutputStream(),
-            buffer = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024),
-            length,
-            stream = null,
-            responseXML = null;
+			}, data);
 
-        try{
-            stream = (contentEncoding.equalsIgnoreCase("gzip") || 
-                      contentEncoding.equalsIgnoreCase("decompress") )?
-                new java.util.zip.GZIPInputStream(connection.getInputStream()) :
-                connection.getInputStream();
-        }catch(e){
-            if (connection.getResponseCode() == 404){
-                console.log('failed to open connection stream \n %s %s',
-                          e.toString(), e);
-            }else{
-                console.log('failed to open connection stream \n %s %s',
-                           e.toString(), e);
+            if (!_this.aborted){
+                _this.onreadystatechange();
             }
-            stream = connection.getErrorStream();
-        }
-        
-        while ((length = stream.read(buffer)) != -1) {
-            baos.write(buffer, 0, length);
-        }
+		};
 
-        baos.close();
-        stream.close();
-
-        xhr.responseText = java.nio.charset.Charset.forName("UTF-8").
-            decode(java.nio.ByteBuffer.wrap(baos.toByteArray())).toString()+"";
+		if (this.async){
+            //TODO: what we really need to do here is rejoin the 
+            //      current thread and call onreadystatechange via
+            //      setTimeout so the callback is essentially applied
+            //      at the end of the current callstack
+            //console.log('requesting async: %s', this.url);
+			Envjs.runAsync(makeRequest);
+		}else{
+            //console.log('requesting sync: %s', this.url);
+			makeRequest();
+		}
+	},
+	abort: function(){
+        this.aborted = true;
+	},
+	onreadystatechange: function(){
+		//Instance specific
+	},
+	getResponseHeader: function(header){
+      //$debug('GETTING RESPONSE HEADER '+header);
+	  var rHeader, returnedHeaders;
+		if (this.readyState < 3){
+			throw new Error("INVALID_STATE_ERR");
+		} else {
+			returnedHeaders = [];
+			for (rHeader in this.responseHeaders) {
+				if (rHeader.match(new RegExp(header, "i")))
+					returnedHeaders.push(this.responseHeaders[rHeader]);
+			}
             
-    }
-    if(responseHandler){
-        //Envjs.debug('calling ajax response handler');
-        responseHandler();
-    }
+			if (returnedHeaders.length){ 
+                //$debug('GOT RESPONSE HEADER '+returnedHeaders.join(", "));
+                return returnedHeaders.join(", "); 
+            }
+		}
+        return null;
+	},
+	getAllResponseHeaders: function(){
+	  var header, returnedHeaders = [];
+		if (this.readyState < 3){
+			throw new Error("INVALID_STATE_ERR");
+		} else {
+			for (header in this.responseHeaders){
+				returnedHeaders.push( header + ": " + this.responseHeaders[header] );
+			}
+		}return returnedHeaders.join("\r\n");
+	},
+	async: true,
+	readyState: 0,
+	responseText: "",
+	status: 0,
+    statusText: ""
 };
 
-//Since we're running in rhino I guess we can safely assume
-//java is 'enabled'.  I'm sure this requires more thought
-//than I've given it here
-Envjs.javaEnabled = true;   
-
-Envjs.tmpdir         = java.lang.System.getProperty("java.io.tmpdir"); 
-Envjs.os_name        = java.lang.System.getProperty("os.name"); 
-Envjs.os_arch        = java.lang.System.getProperty("os.arch"); 
-Envjs.os_version     = java.lang.System.getProperty("os.version"); 
-Envjs.lang           = java.lang.System.getProperty("user.lang"); 
-Envjs.platform       = "Rhino ";//how do we get the version
-    
 /**
- * Makes an object window-like by proxying object accessors
+ * @author john resig & the envjs team
+ * @uri http://www.envjs.com/
+ * @copyright 2008-2010
+ * @license MIT
+ */
+
+})();
+
+/**
+ * @todo: document
+ */
+var Window,
+    Screen,
+    History,
+    Navigator;
+
+
+/*
+ * Envjs window.1.2.0.2 
+ * Pure JavaScript Browser Environment
+ * By John Resig <http://ejohn.org/> and the Envjs Team
+ * Copyright 2008-2010 John Resig, under the MIT License
+ */
+
+(function(){
+
+
+
+
+
+/**
+ * @author john resig
+ */
+// Helper method for extending one object with another.  
+function __extend__(a,b) {
+    for ( var i in b ) {
+        var g = b.__lookupGetter__(i), s = b.__lookupSetter__(i);
+        if ( g || s ) {
+            if ( g ) a.__defineGetter__(i, g);
+            if ( s ) a.__defineSetter__(i, s);
+        } else
+            a[i] = b[i];
+    } return a;
+};
+/**
+ * @todo: document
+ */
+
+__extend__(HTMLFrameElement.prototype,{
+
+    get contentDocument(){
+        return this.contentWindow?
+            this.contentWindow.document:
+            null;
+    },
+    set src(value){
+        var event;
+        this.setAttribute('src', value);
+        if (this.parentNode && value && value.length > 0){
+            //console.log('loading frame %s', value);
+            Envjs.loadFrame(this, Envjs.uri(value));
+            
+            //console.log('event frame load %s', value);
+            event = this.ownerDocument.createEvent('HTMLEvents');
+            event.initEvent("load", false, false);
+            this.dispatchEvent( event, false );
+        }
+    }
+    
+});
+
+/*
+*	history.js
+*
+*/
+
+History = function(owner){
+	var $current = 0,
+        $history = [null],
+        $owner = owner;
+	
+    return {
+		get length(){ 
+            return $history.length;
+        },
+		back : function(count){
+			if(count){
+				go(-count);
+			}else{
+                go(-1);
+            }
+		},
+        get current(){
+            return this.item($current);
+        },
+        get previous(){
+            return this.item($current-1);
+        },
+		forward : function(count){
+			if(count){
+				go(count);
+			}else{go(1);}
+		},
+		go : function(target){
+			if(typeof target == "number"){
+				target = $current + target;
+				if(target > -1 && target < $history.length){
+					if($history[target].type == "hash"){
+                        if($owner.location){
+						    $owner.location.hash = $history[target].value;
+                        }
+					}else{
+                        if($owner.location){
+						    $owner.location = $history[target].value;
+                        }
+					}
+					$current = target;
+				}
+			}else{
+				//TODO: walk through the history and find the 'best match'?
+			}
+		},
+        item: function(index){
+            if(index < history.length)
+                return $history[index];
+            else
+                return null;
+        },
+        
+        add: function(newLocation, type){
+            //not a standard interface, we expose it to simplify 
+            //history state modifications
+            if(newLocation !== $history[$current]){
+                $history.slice(0, $current);
+                $history.push({
+                    type: type||"href",
+                    value: value
+                });
+            }
+        }
+	};
+};
+
+
+	
+
+/*
+ *	navigator.js
+ *  Browser Navigator    
+ */
+Navigator = function(){
+
+	return {
+		get appCodeName(){
+			return Envjs.appCodeName;
+		},
+		get appName(){
+			return Envjs.appName;
+		},
+		get appVersion(){
+			return Envjs.version +" ("+ 
+			    this.platform +"; "+
+			    "U; "+//?
+			    Envjs.os_name+" "+Envjs.os_arch+" "+Envjs.os_version+"; "+
+			    (Envjs.lang?Envjs.lang:"en-US")+"; "+
+			    "rv:"+Envjs.revision+
+			  ")";
+		},
+		get cookieEnabled(){
+			return true;
+		},
+		get mimeTypes(){
+			return [];
+		},
+		get platform(){
+			return Envjs.platform;
+		},
+		get plugins(){
+			return [];
+		},
+		get userAgent(){
+			return this.appCodeName + "/" + this.appVersion + " " + this.appName;
+		},
+		javaEnabled : function(){
+			return Envjs.javaEnabled;	
+		}
+	};
+};
+
+
+/**
+ * Screen
+ * @param {Object} __window__
+ */
+
+Screen = function(__window__){
+
+    var $availHeight  = 600,
+        $availWidth   = 800,
+        $colorDepth   = 16,
+        $pixelDepth   = 24,
+        $height       = 600,
+        $width        = 800;
+        $top          = 0;
+        $left         = 0;
+        $availTop     = 0;
+        $availLeft    = 0;
+        
+    __extend__( __window__, {
+        moveBy : function(dx,dy){
+            //TODO - modify $locals to reflect change
+        },
+        moveTo : function(x,y) {
+            //TODO - modify $locals to reflect change
+        },
+        /*print : function(){
+            //TODO - good global to modify to ensure print is not misused
+        };*/
+        resizeBy : function(dw, dh){
+            __window__resizeTo($width + dw, $height + dh);
+        },
+        resizeTo : function(width, height){
+            $width = (width <= $availWidth) ? width : $availWidth;
+            $height = (height <= $availHeight) ? height : $availHeight;
+        },
+        scroll : function(x,y){
+            //TODO - modify $locals to reflect change
+        },
+        scrollBy : function(dx, dy){
+            //TODO - modify $locals to reflect change
+        },
+        scrollTo : function(x,y){
+            //TODO - modify $locals to reflect change
+        }
+    });   
+    
+    return {
+        get top(){
+            return $top;
+        },
+        get left(){
+            return $left;
+        },
+        get availTop(){
+            return $availTop;
+        },
+        get availLeft(){
+            return $availleft;
+        },
+        get availHeight(){
+            return $availHeight;
+        },
+        get availWidth(){
+            return $availWidth;
+        },
+        get colorDepth(){
+            return $colorDepth;
+        },
+        get pixelDepth(){
+            return $pixelDepth;
+        },
+        get height(){
+            return $height;
+        },
+        get width(){
+            return $width;
+        }
+    };
+};
+
+//These descriptions of window properties are taken loosely David Flanagan's
+//'JavaScript - The Definitive Guide' (O'Reilly)
+
+/**
+ * Window
  * @param {Object} scope
  * @param {Object} parent
+ * @param {Object} opener
  */
-Envjs.proxy = function(scope, parent){
+Window = function(scope, parent, opener){
     
+    // the window property is identical to the self property and to this obj
+    //var proxy = new Envjs.proxy(scope, parent);
+    //scope.__proxy__ = proxy;
+    scope.__defineGetter__('window', function(){
+        return scope;
+    });
     
-    var _scope = scope;
-        _parent = parent||null,
-        _this = this,
-        _undefined = undefined,
-        _proxy = new Packages.org.mozilla.javascript.ScriptableObject({
-            getClassName: function(){
-                return 'envjs.platform.rhino.Proxy';
-            },
-            has: function(nameOrIndex, start){
-                var has;
-                //print('proxy has '+nameOrIndex+" ("+nameOrIndex['class']+")");
-                if(nameOrIndex['class'] == java.lang.String){
-                    switch(nameOrIndex+''){
-                        case '__iterator__':
-                            return _proxy.__iterator__;
-                            break;
-                        default:
-                            has = (nameOrIndex+'') in _scope;
-                            //print('has as string :'+has);
-                            return has;
-                    }
-                }else if(nameOrIndex['class'] == java.lang.Integer){
-                    has = Number(nameOrIndex+'') in _scope;
-                    //print('has as index :'+has);
-                    return has;
-                }else{
-                    //print('has not');
-                    return false;
-                }
-            },
-            put: function(nameOrIndex,  start,  value){
-                //print('proxy put '+nameOrIndex+" = "+value+" ("+nameOrIndex['class']+")");
-                if(nameOrIndex['class'] == java.lang.String){
-                    //print("put as string");
-                    _scope[nameOrIndex+''] = value;
-                }else if(nameOrIndex['class'] == java.lang.Integer){
-                    //print("put as index");
-                    _scope[Number(nameOrIndex+'')] = value;
-                }else{
-                    //print('put not');
-                    return _undefined;
-                }
-            },
-            get: function(nameOrIndex, start){
-                //print('proxy get '+nameOrIndex+" ("+nameOrIndex['class']+")");
-                if(nameOrIndex['class'] == java.lang.String){
-                    //print("get as string");
-                    return  _scope[nameOrIndex+''];
-                }else if(nameOrIndex['class'] == java.lang.Integer){
-                    //print("get as index");
-                    return _scope[Number(nameOrIndex+'')];
-                }else{
-                    //print('get not');
-                    return _undefined;
-                }
-            },
-            'delete': function(nameOrIndex){
-                _scope['delete'](nameOrIndex);
-            },
-            get parentScope(){
-                return _parent;
-            },
-            set parentScope(parent){
-                _parent = parent;
-            },
-            get topLevelScope(){
-                return _scope;
-            },
-            equivalentValues: function(value){
-                return (value == _scope || value == this );
-            },
-            equals: function(value){
-                return (value === _scope || value === this );
+    var $uuid = new Date().getTime()+'-'+Math.floor(Math.random()*1000000000000000); 
+    __windows__[$uuid] = scope;
+    //console.log('opening window %s', $uuid);
+    
+    // every window has one-and-only-one .document property which is always
+    // an [object HTMLDocument].  also, only window.document objects are
+    // html documents, all other documents created by the window.document are
+    // [object XMLDocument]
+    var $htmlImplementation =  new DOMImplementation();
+    $htmlImplementation.namespaceAware = true;
+    $htmlImplementation.errorChecking = false;
+    
+    // read only reference to the Document object
+    var $document = new HTMLDocument($htmlImplementation, scope);
+    
+    // A read-only reference to the Window object that contains this window
+    // or frame.  If the window is a top-level window, parent refers to
+    // the window itself.  If this window is a frame, this property refers
+    // to the window or frame that contains it.
+    var $parent = parent;
+    
+    /**> $cookies - see cookie.js <*/
+    // read only boolean specifies whether the window has been closed
+    var $closed = false;
+    
+    // a read/write string that specifies the default message that 
+    // appears in the status line 
+    var $defaultStatus = "Done";
+    
+    // IE only, refers to the most recent event object - this maybe be 
+    // removed after review
+    var $event = null;
+    
+    // a read-only reference to the History object
+    var $history = new History();
+    
+    // a read-only reference to the Location object.  the location object does 
+    // expose read/write properties
+    var $location = new Location('about:blank', $document, $history);
+    
+    // The name of window/frame. Set directly, when using open(), or in frameset.
+    // May be used when specifying the target attribute of links
+    var $name = null;
+    
+    // a read-only reference to the Navigator object
+    var $navigator = new Navigator();
+    
+    // a read/write reference to the Window object that contained the script 
+    // that called open() to open this browser window.  This property is valid 
+    // only for top-level window objects.
+    var $opener = opener?opener:null;
+    
+    // read-only properties that specify the height and width, in pixels
+    var $innerHeight = 600, $innerWidth = 800;
+    
+    // Read-only properties that specify the total height and width, in pixels, 
+    // of the browser window. These dimensions include the height and width of 
+    // the menu bar, toolbars, scrollbars, window borders and so on.  These 
+    // properties are not supported by IE and IE offers no alternative 
+    // properties;
+    var $outerHeight = $innerHeight, 
+        $outerWidth = $innerWidth;
+    
+    // Read-only properties that specify the number of pixels that the current 
+    // document has been scrolled to the right and down.  These are not 
+    // supported by IE.
+    var $pageXOffset = 0, $pageYOffset = 0;
+    
+    // a read-only reference to the Screen object that specifies information  
+    // about the screen: the number of available pixels and the number of 
+    // available colors.
+    var $screen = new Screen(scope);
+   
+    // read only properties that specify the coordinates of the upper-left 
+    // corner of the screen.
+    var $screenX = 1, 
+        $screenY = 1;
+    var $screenLeft = $screenX, 
+        $screenTop = $screenY;
+    
+    // a read/write string that specifies the current status line.
+    var $status = '';
+    
+    __extend__(scope, EventTarget.prototype);
+
+    return __extend__( scope, {
+        get closed(){
+            return $closed;
+        },
+        get defaultStatus(){
+            return $defaultStatus;
+        },
+        set defaultStatus(defaultStatus){
+            $defaultStatus = defaultStatus;
+        },
+        get document(){ 
+            return $document;
+        },
+        set document(doc){ 
+            $document = doc;
+        },
+        /*
+        deprecated ie specific property probably not good to support
+        get event(){
+            return $event;
+        },
+        */
+        get frames(){
+        return new HTMLCollection($document.getElementsByTagName('frame'));
+        },
+        get length(){
+            // should be frames.length,
+            return this.frames.length;
+        },
+        get history(){
+            return $history;
+        },
+        get innerHeight(){
+            return $innerHeight;
+        },
+        get innerWidth(){
+            return $innerWidth;
+        },
+        get clientHeight(){
+            return $innerHeight;
+        },
+        get clientWidth(){
+            return $innerWidth;
+        },
+        get location(){
+            return $location;
+        },
+        set location(uri){
+            uri = Envjs.uri(uri);
+            //new Window(this, this.parent, this.opener);
+            if($location.href == uri){
+                $location.reload();
+            }else if($location.href == 'about:blank'){
+                $location.assign(uri);
+            }else{
+                $location.replace(uri);
             }
-        });
-        
-    return _proxy;
+        },
+        get name(){
+            return $name;
+        },
+        set name(newName){ 
+            $name = newName; 
+        },
+        get navigator(){
+            return $navigator;
+        }, 
+        get opener(){
+            return $opener;
+        },
+        get outerHeight(){
+            return $outerHeight;
+        },
+        get outerWidth(){
+            return $outerWidth;
+        },
+        get pageXOffest(){
+            return $pageXOffset;
+        },
+        get pageYOffset(){
+            return $pageYOffset;
+        },
+        get parent(){
+            return $parent;
+        },
+        get screen(){
+            return $screen;
+        },
+        get screenLeft(){
+            return $screenLeft;
+        },
+        get screenTop(){
+            return $screenTop;
+        },
+        get screenX(){
+            return $screenX;
+        },
+        get screenY(){
+            return $screenY;
+        },
+        get self(){
+            return scope;
+        },
+        get status(){
+            return $status;
+        },
+        set status(status){
+            $status = status;
+        },
+        // a read-only reference to the top-level window that contains this window.
+        // If this window is a top-level window it is simply a reference to itself.  
+        // If this window is a frame, the top property refers to the top-level 
+        // window that contains the frame.
+        get top(){
+            return __top__(scope)
+        },
+        get window(){
+            return this;
+        },
+        toString : function(){
+            return '[Window]';
+        },
+        getComputedStyle : function(element, pseudoElement){
+            if(CSS2Properties){
+                return element?
+                    element.style:new CSS2Properties({cssText:""});
+            }
+        },
+        open: function(url, name, features, replace){
+            if (features)
+                console.log("'features argument not yet implemented");
+            var _window = Envjs.proxy({}),
+                open;
+            if(replace && name){
+                for(open in __windows__){
+                    if(open.name === name)
+                        _window = open;
+                }
+            }
+            new Window(_window, _window, this);
+            if(name)
+                _window.name = name;
+            _window.document.async = false;
+            _window.location.assign(Envjs.uri(url));
+            return _window;
+        },
+        close: function(){
+            //console.log('closing window %s', __windows__[$uuid]);
+            try{
+                delete __windows__[$uuid];
+                delete scope;
+                delete this;
+            }catch(e){
+                console.log('%s',e)
+            }
+        },
+        alert : function(message){
+            Envjs.alert(message);
+        },
+        confirm : function(question){
+            Envjs.confirm(question);
+        },
+        prompt : function(message, defaultMsg){
+            Envjs.prompt(message, defaultMsg);
+        },
+        onload: function(){},
+        onunload: function(){},
+        get guid(){
+            return $uuid;
+        }
+    });
+
 };
+
+var __top__ = function(_scope){
+    var _parent = _scope.parent;
+    while(_scope && _parent && _scope !== _parent){
+        if(_parent === _parent.parent)break;
+        _parent = _parent.parent;
+        //console.log('scope %s _parent %s', scope, _parent);
+    }
+    return _parent || null;
+}
+
+var __windows__ = {};
+
+//finally pre-supply the window with the window-like environment
+//console.log('Default Window');
+new Window(__this__, __this__);
+console.log('[ %s ]',window.navigator.userAgent);
+
 
 /**
  * @author john resig & the envjs team
