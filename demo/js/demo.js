@@ -15,41 +15,46 @@
  *
  */
 $(document).ready(function(){
+	
+	// All examples use the commit to function interface for ease of demonstration.
+	// If you want to try it against a server, just comment the callback: and 
+	// uncomment the url: lines.
+	
+	// The most basic form of using the inPlaceEditor
+	$("#editme1").editInPlace({
+		callback: function(unused, enteredText) { return enteredText; },
+		// url: './server.php',
+		show_buttons: true
+	});
 
-    // This example only specifies a URL to handle the POST request to
-    // the server, and tells the script to show the save / cancel buttons
-    $(".editme1").editInPlace({
-        url: "./server.php",
-        show_buttons: true
-    });
+	// This example shows how to call the function and display a textarea
+	// instead of a regular text box. A few other options are set as well,
+	// including an image saving icon, rows and columns for the textarea,
+	// and a different rollover color.
+	$("#editme2").editInPlace({
+		callback: function(unused, enteredText) { return enteredText; },
+		// url: "./server.php",
+		bg_over: "#cff",
+		field_type: "textarea",
+		textarea_rows: "15",
+		textarea_cols: "35",
+		saving_image: "./images/ajax-loader.gif"
+	});
 
-    // This example shows how to call the function and display a textarea
-    // instead of a regular text box. A few other options are set as well,
-    // including an image saving icon, rows and columns for the textarea,
-    // and a different rollover color.
-    $(".editme2").editInPlace({
-        url: "./server.php",
-        bg_over: "#cff",
-        field_type: "textarea",
-        textarea_rows: "15",
-        textarea_cols: "35",
-        saving_image: "./images/ajax-loader.gif"
-    });
+	// A select input field so we can limit our options
+	$("#editme3").editInPlace({
+		callback: function(unused, enteredText) { return enteredText; },
+		// url: "./server.php",
+		field_type: "select",
+		select_options: "Change me to this, No way:no"
+	});
 
-    // A select input field so we can limit our options
-    $(".editme3").editInPlace({
-        url: "./server.php",
-        field_type: "select",
-        select_options: "Change me to this, No way:no"
-    });
-
-    // Using a callback function to update 2 divs
-    $(".editme4").editInPlace({
-        url: "./server.php",
-        callback: function(original_element, html, original){
-            $("#updateDiv1").html("The original html was: " + original);
-            $("#updateDiv2").html("The updated text is: " + html);
-            return(html);
-        }
-    });
+	// Using a callback function to update 2 divs
+	$("#editme4").editInPlace({
+		callback: function(original_element, html, original){
+			$("#updateDiv1").html("The original html was: " + original);
+			$("#updateDiv2").html("The updated text is: " + html);
+			return(html);
+		}
+	});
 });

@@ -5,7 +5,7 @@
         <title>Another In-Place Editor, a jQuery Plugin by Dave Hauenstein</title>
         <script type="text/javascript" src="../spec/support/jquery.js"></script>
         <script type="text/javascript" src="../lib/jquery.editinplace.js"></script>
-        <script type="text/javascript" src="./js/demo.js"></script>
+        <script type="text/javascript" src="js/demo.js"></script>
         <link rel="stylesheet" href="./css/styles.css" type="text/css" media="screen" title="no title" charset="utf-8" />
     </head>
 
@@ -23,25 +23,25 @@
 
             <h2>Example 1 - Standard Text box</h2>
 
-            <p class="editme1">
-                This example is with no options except for a URL that will handle the value passed to the server.
+            <p id="editme1">
+                This example is with no options except for a callback that will handle the value when the edit is complete.
             </p>
 
             <h2>Example 2 - Text area</h2>
 
-            <p class="editme2">
+            <p id="editme2">
                 This example shows how to call the function and display a textarea instead of a regular text box. A few other options are set as well, including an image saving icon, rows and columns for the textarea, and a different rollover color.
             </p>
 
             <h2>Example 3 - Select Dropdown</h2>
 
-            <p class="editme3">
+            <p id="editme3">
                 How about a select input field so we can limit our options? Yup, just click here.
             </p>
             
             <h2>Example 4 - Using a callback function to update 2 divs</h2>
 
-            <p class="editme4">
+            <p id="editme4">
                 Edit me now!
             </p>
 
@@ -49,13 +49,5 @@
             <div id="updateDiv2">Second div to be updated</div>
 
         </div>
-        <script type="text/javascript">
-        var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
-        document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
-        </script>
-        <script type="text/javascript">
-        var pageTracker = _gat._getTracker("UA-5259264-2");
-        pageTracker._trackPageview();
-        </script>
     </body>
 </html>
