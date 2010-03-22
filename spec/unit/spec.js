@@ -244,6 +244,11 @@ describe 'jquery.editinplace'
       this.sandbox.mouseleave().should.not.have_class 'fnord'
     end
     
+    it 'should still commit if commit_if_nothing_was_changed is specified'
+      $.should.receive 'ajax', 'once'
+      this.editor({save_if_nothing_changed:true}).find('form').submit()
+    end
+    
   end
   
   describe 'edit field behaviour'
