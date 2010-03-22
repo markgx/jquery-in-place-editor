@@ -4,7 +4,7 @@
 ;(function(){
 
   JSpec = {
-    version   : '3.2.1',
+    version   : '3.3.0',
     assert    : true,
     cache     : {},
     suites    : [],
@@ -126,10 +126,10 @@
        */
 
       DOM : function(results, options) {
-        var id = option('reportToId') || 'jspec'
-        var report = document.getElementById(id)
-        var failuresOnly = option('failuresOnly')
-        var classes = results.stats.failures ? 'has-failures' : ''
+        var id = option('reportToId') || 'jspec',
+            report = document.getElementById(id),
+            failuresOnly = option('failuresOnly'),
+            classes = results.stats.failures ? 'has-failures' : ''
         if (!report) throw 'JSpec requires the element #' + id + ' to output its reports'
         
         function bodyContents(body) {
@@ -170,7 +170,7 @@
        */
        
        Terminal : function(results, options) {
-         failuresOnly = option('failuresOnly')
+         var failuresOnly = option('failuresOnly')
          print(color("\n Passes: ", 'bold') + color(results.stats.passes, 'green') + 
                color(" Failures: ", 'bold') + color(results.stats.failures, 'red') +
                color(" Duration: ", 'bold') + color(results.duration, 'green') + " ms \n")
@@ -200,33 +200,7 @@
          })
          
          quit(results.stats.failures)
-       },
-
-      /**
-       * Console reporter.
-       *
-       * @api public
-       */
-
-      Console : function(results, options) {
-        console.log('')
-        console.log('Passes: ' + results.stats.passes + ' Failures: ' + results.stats.failures)
-        each(results.allSuites, function(suite) {
-          if (suite.ran) {
-            console.group(suite.description)
-            each(suite.specs, function(spec){
-              var assertionCount = spec.assertions.length + ':'
-              if (spec.requiresImplementation())
-                console.warn(spec.description)
-              else if (spec.passed())
-                console.log(assertionCount + ' ' + spec.description)
-              else 
-                console.error(assertionCount + ' ' + spec.description + ', ' + spec.failure().message)
-            })
-            console.groupEnd()
-          }
-        })
-      }
+       }
     },
     
     Assertion : function(matcher, actual, expected, negate) {
@@ -1637,12 +1611,30 @@
       return this
     }
   }
+  
+  // --- Node.js support
+  
+  if (typeof GLOBAL === 'object' && typeof exports === 'object') {
+    var posix = require('posix')
+    quit = process.exit
+    print = require('sys').puts
 
+    readFile = function(path) {
+      var result
+      posix
+        .cat(path, "utf8")
+        .addCallback(function(contents){ result = contents })
+        .addErrback(function(){ throw new Error("failed to read file `" + path + "'") })
+        .wait()
+      return result
+    }
+  }
+  
   // --- Utility functions
 
-  var main = this
-  var find = JSpec.any
-  var utils = 'haveStopped stub hookImmutable hook destub map any last pass fail range each option inject select \
+  var main = this,
+      find = JSpec.any,
+      utils = 'haveStopped stub hookImmutable hook destub map any last pass fail range each option inject select \
                error escape extend puts query strip color does addMatchers callIterator toArray equal'.split(/\s+/)
   while (utils.length) eval('var ' + utils[0] + ' = JSpec.' + utils.shift())
   if (!main.setTimeout) main.setTimeout = function(callback){ callback() }
