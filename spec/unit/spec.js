@@ -178,15 +178,16 @@ describe 'jquery.editinplace'
     describe 'select fields'
       
       before
-        this.options = function(settings) {
-          var mergedSettings = $.extend({
+        this.selectOptions = function(overideOptions) {
+          return $.extend({
             field_type:'select',
             select_text:'select_text',
             select_options:'first,second,third'
-          }, settings)
-          
+          }, overideOptions)
+        }
+        this.options = function(settings) {
           // get() makes the assertions output the dom instead of the last selector if they fail...
-          return this.editor(mergedSettings).find('option').get()
+          return this.editor(this.selectOptions(settings)).find('option').get()
         }
       end
       
@@ -242,6 +243,13 @@ describe 'jquery.editinplace'
       it 'should disable default choice in select'
         var options = this.options()
         options[0].should.be_disabled
+      end
+      
+      it 'does not submit disabled default choice in select'
+        var foo = this.editor(this.selectOptions({
+          callback: function(unused, input) { return input; }
+        })).find(':input').val('').submit()
+        this.sandbox.should.have_text "Some text"
       end
       
     end
