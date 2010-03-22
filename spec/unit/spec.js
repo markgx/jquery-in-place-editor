@@ -172,7 +172,7 @@ describe 'jquery.editinplace'
       options[2].should.be_selected
     end
     
-    it 'should allow select_options to specify different value and text'
+    it 'should allow select_options to specify different value and text as text:value'
       var options = this.editor({
         field_type:'select',
         select_options:'text:value'
@@ -189,6 +189,38 @@ describe 'jquery.editinplace'
       options.should.have_length 4
       options[2].should.have_text 'bar'
       options[2].should.have_value 'bar'
+    end
+    
+    it 'should allow an array of strings for select values'
+      var options = this.editor({
+        field_type:'select',
+        select_options:['foo', 'bar']
+      }).find('option').get()
+      options.should.have_length 3
+      options[1].should.have_text 'foo'
+      options[1].should.have_value 'foo'
+    end
+    
+    it 'should allow array of array of strings to specify selected value and text as ["text", "value"]'
+      var options = this.editor({
+        field_type:'select',
+        select_options:[['text', 'value']]
+      }).find('option').get()
+      options.should.have_length 2
+      options[1].should.have_text 'text'
+      options[1].should.have_value 'value'
+    end
+    
+    it 'should throw if unknown field_type is chosen'
+      var _this = this;
+      -{ _this.editor({ field_type: 'fnord' }) }.should.throw_error /Unknown field_type <fnord>/
+    end
+    
+    it 'should disable default choice in select'
+      var options = this.editor({
+        field_type:'select',
+      }).find('option')
+      options[0].should.be_disabled
     end
   end
   
