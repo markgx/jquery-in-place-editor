@@ -109,6 +109,11 @@ describe 'jquery.editinplace'
       this.editor().find('form').submit()
     end
     
+    it 'should not think that it has placed the default text in the editor if its content is changed from somewhere else'
+      this.sandbox = $('<p></p>').editInPlace().text('fnord')
+      this.sandbox.click().find(':input').val().should.equal 'fnord'
+    end
+    
   end
   
   describe 'submit to callback'
