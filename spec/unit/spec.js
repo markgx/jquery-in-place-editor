@@ -86,6 +86,22 @@ describe 'jquery.editinplace'
         this.sandbox.should.have_text 'Saving...'
       end
       
+      it 'will url encode entered text'
+        var data = null
+        stub($.ajax)
+        $.ajax = function(options) { data = options.data; }
+        this.editor().find(':input').val('%&=/<>').submit()
+        data.should.include 'update_value=%25%26%3D%2F%3C%3E'
+      end
+      
+      it 'will url encode original html correctly'
+        var data = null
+        stub($.ajax)
+        $.ajax = function(options) { data = options.data; }
+        this.sandbox.html('<p onclick="\"%&=/<>\"">')
+        this.editor().find('form').submit()
+        data.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
+      end
     end
     
   end
