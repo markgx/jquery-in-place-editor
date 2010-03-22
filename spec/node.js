@@ -3,7 +3,7 @@ process.mixin(require('sys'))
 require.paths.unshift('spec', './spec/lib', 'lib')
 require('jspec')
 require('unit/spec.helper')
-require('yourlib')
+require('jquery.editinplace')
 
 quit = process.exit
 print = puts

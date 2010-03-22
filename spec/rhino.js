@@ -1,7 +1,18 @@
 
+// Latest env.js doesn't work with jspec (yet)
+load('./spec/support/env.rhino.js')
+Envjs('spec/support/dummy.html')
+load('./spec/support/jquery.js')
+
 load('./spec/lib/jspec.js')
-load('./spec/lib/jspec.xhr.js')
-load('lib/yourlib.js')
+// load('./spec/lib/jspec.xhr.js')
+
+
+load('./spec/lib/jspec.jquery.js')
+
+load('./spec/lib/jspec.growl.js')
+
+load('lib/jquery.editinplace.js')
 load('spec/unit/spec.helper.js')
 
 JSpec
