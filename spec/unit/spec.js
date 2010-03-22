@@ -141,12 +141,25 @@ describe 'jquery.editinplace'
     
   end
   
-  describe 'behaviour'
+  describe 'edit field behaviour'
     
-    it 'should escape content when inserting it into the editor'
+    $.each(['text', 'textarea', 'select'], function(index, type) {
+      this.type = type;
       
-    end
+      it 'should escape content when inserting text into the ' + this.type + ' editor'
+        this.sandbox.text('&"<>');
+        this.editor({field_type:this.type}).find(':input').should.have_value '&"<>'
+      end
+    
+      it 'should trim content when inserting text into the ' + this.type + ' editor'
+        this.sandbox.text(' fnord ')
+        this.editor({field_type:this.type}).find(':input').should.have_value 'fnord'
+      end
+    
+    })
+  
   end
+  
 end
 
 __END__
