@@ -71,6 +71,11 @@ describe 'jquery.editinplace'
       
     end
     
+    it 'will size textareas 25x10'
+      var textarea = this.editor({field_type:'textarea'}).find(':input')
+      textarea.attr('cols').should.be 25
+      textarea.attr('rows').should.be 10
+    end
   end
   
   describe 'submit to callback'
@@ -83,7 +88,7 @@ describe 'jquery.editinplace'
       var called
       this.editor({
         callback: -{ called = true; },
-        callbackShowErrors: false
+        callbackShowErrors: false // That this needs to be supressed is IMO a bug. If I submit to a callback all controll of the submit operation should be with the callback - or there should be a suite of callbacks to override this
       }).find('form').submit()
       called.should.be true
     end
