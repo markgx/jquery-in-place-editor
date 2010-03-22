@@ -139,6 +139,57 @@ describe 'jquery.editinplace'
       textarea.should.have_attr 'cols', 42
     end
     
+    it 'should show popup with custom values'
+      var options = this.editor({
+        field_type:'select',
+        select_text:'fnord',
+        select_options:'foo,bar'
+      }).click().find('option')
+      
+      options.should.have_length 3
+      options[1].should.have_text 'foo'
+      options[1].should.have_value 'foo'
+      options[2].should.have_text 'bar'
+      options[2].should.have_value 'bar'
+    end
+    
+    it 'should have default value of "" for default value'
+      var options = this.editor({
+        field_type:'select',
+        select_text:'fnord',
+      }).click().find('option').get()
+    
+      options[0].should.have_text 'fnord'
+      options[0].should.have_value ''
+    end
+    
+    it 'should select item in popup which matches initial text'
+      var options = $('<p>text</p>').editInPlace({
+        field_type:'select',
+        select_options:'foo,text,bar'
+      }).click().find('option').get()
+      options.should.have_length 4
+      options[2].should.be_selected
+    end
+    
+    it 'should allow select_options to specify different value and text'
+      var options = this.editor({
+        field_type:'select',
+        select_options:'text:value'
+      }).find('option').get()
+      options[1].should.have_value 'value'
+      options[1].should.have_text 'text'
+    end
+    
+    it 'should not show spaces in popup specification in dom'
+      var options = this.editor({
+        field_type:'select',
+        select_options:'foo, bar, baz'
+      }).find('option')
+      options.should.have_length 4
+      options[2].should.have_text 'bar'
+      options[2].should.have_value 'bar'
+    end
   end
   
   describe 'edit field behaviour'
