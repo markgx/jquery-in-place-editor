@@ -139,76 +139,75 @@ describe 'jquery.editinplace'
       textarea.should.have_attr 'cols', 42
     end
     
-    it 'should show popup with custom values'
-      var options = this.editor({
-        field_type:'select',
-        select_text:'fnord',
-        select_options:'foo,bar'
-      }).click().find('option')
+    describe 'select fields'
       
-      options.should.have_length 3
-      options[1].should.have_text 'foo'
-      options[1].should.have_value 'foo'
-      options[2].should.have_text 'bar'
-      options[2].should.have_value 'bar'
-    end
-    
-    it 'should have default value of "" for default value'
-      var options = this.editor({
-        field_type:'select',
-        select_text:'fnord',
-      }).click().find('option').get()
-    
-      options[0].should.have_text 'fnord'
-      options[0].should.have_value ''
-    end
-    
-    it 'should select item in popup which matches initial text'
-      var options = $('<p>text</p>').editInPlace({
-        field_type:'select',
-        select_options:'foo,text,bar'
-      }).click().find('option').get()
-      options.should.have_length 4
-      options[2].should.be_selected
-    end
-    
-    it 'should allow select_options to specify different value and text as text:value'
-      var options = this.editor({
-        field_type:'select',
-        select_options:'text:value'
-      }).find('option').get()
-      options[1].should.have_value 'value'
-      options[1].should.have_text 'text'
-    end
-    
-    it 'should not show spaces in popup specification in dom'
-      var options = this.editor({
-        field_type:'select',
-        select_options:'foo, bar, baz'
-      }).find('option')
-      options.should.have_length 4
-      options[2].should.have_text 'bar'
-      options[2].should.have_value 'bar'
-    end
-    
-    it 'should allow an array of strings for select values'
-      var options = this.editor({
-        field_type:'select',
-        select_options:['foo', 'bar']
-      }).find('option').get()
-      options.should.have_length 3
-      options[1].should.have_text 'foo'
-      options[1].should.have_value 'foo'
-    end
-    
-    it 'should allow array of array of strings to specify selected value and text as ["text", "value"]'
-      var options = this.editor({
-        field_type:'select',
-        select_options:[['text', 'value']]
-      }).find('option').get()
-      options.should.have_length 2
-      options[1].should.have_text 'text'
-      options[1].should.have_value 'value'
+      before
+        this.options = function(settings) {
+          var mergedSettings = $.extend({
+            field_type:'select',
+            select_text:'select_text',
+            select_options:'first,second,third'
+          }, settings)
+          
+          // get() makes the assertions output the dom instead of the last selector if they fail...
+          return this.editor(mergedSettings).find('option').get()
+        }
+      end
+      
+      it 'should show popup with custom values'
+        var options = this.options({ select_options:'foo,bar' })
+        options.should.have_length 3
+        options[1].should.have_text 'foo'
+        options[1].should.have_value 'foo'
+        options[2].should.have_text 'bar'
+        options[2].should.have_value 'bar'
+      end
+      
+      it 'should have default value of "" for default value'
+        var options = this.options({ select_text:'fnord' })
+        options[0].should.have_text 'fnord'
+        options[0].should.have_value ''
+      end
+      
+      it 'should select item in popup which matches initial text'
+        this.sandbox = $('<p>text</p>')
+        var options = this.options({ select_options:'foo,text,bar' })
+        options.should.have_length 4
+        options[2].should.be_selected
+      end
+      
+      it 'should allow select_options to specify different value and text as text:value'
+        var options = this.options({ select_options:'text:value' })
+        options[1].should.have_value 'value'
+        options[1].should.have_text 'text'
+      end
+      
+      it 'should not show spaces in popup specification in dom'
+        var options = this.options({ select_options:'foo, bar, baz' })
+        options.should.have_length 4
+        options[2].should.have_text 'bar'
+        options[2].should.have_value 'bar'
+      end
+      
+      it 'should allow an array of strings for select values'
+        var options = this.options({ select_options:['foo', 'bar'] })
+        options.should.have_length 3
+        options[1].should.have_text 'foo'
+        options[1].should.have_value 'foo'
+      end
+      
+      it 'should allow array of array of strings to specify selected value and text as ["text", "value"]'
+        var options = this.options({ select_options:[['text', 'value']] })
+        options.should.have_length 2
+        options[1].should.have_text 'text'
+        options[1].should.have_value 'value'
+      end
+      
+      it 'should disable default choice in select'
+        var options = this.options()
+        options[0].should.be_disabled
+      end
+      
     end
     
     it 'should throw if unknown field_type is chosen'
@@ -216,12 +215,6 @@ describe 'jquery.editinplace'
       -{ _this.editor({ field_type: 'fnord' }) }.should.throw_error /Unknown field_type <fnord>/
     end
     
-    it 'should disable default choice in select'
-      var options = this.editor({
-        field_type:'select',
-      }).find('option')
-      options[0].should.be_disabled
-    end
   end
   
   describe 'edit field behaviour'
@@ -233,7 +226,7 @@ describe 'jquery.editinplace'
         this.sandbox.text('&"<>');
         this.editor({field_type:this.type}).find(':input').should.have_value '&"<>'
       end
-    
+      
       it 'should trim content when inserting text into the ' + this.type + ' editor'
         this.sandbox.text(' fnord ')
         this.editor({field_type:this.type}).find(':input').should.have_value 'fnord'
