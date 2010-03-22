@@ -286,6 +286,15 @@ describe 'jquery.editinplace'
       end
     end
     
+    it 'should not reset background color on submit if hover_class is specified'
+      this.editor({hover_class: 'fnord'}).find(':input').val('fnord').submit();
+      this.sandbox.css('background-color').should.be_within ['', 'inherit']
+    end
+    
+    it 'should not reset background color on cancel if hover_class is specified'
+      this.editor({hover_class: 'fnord'}).find('form').trigger({type:'keyup', which:27 /* escape */})
+      this.sandbox.css('background-color').should.be_within ['', 'inherit']
+    end
   end
   
   describe 'edit field behaviour'
