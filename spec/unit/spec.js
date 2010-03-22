@@ -131,6 +131,16 @@ describe 'jquery.editinplace'
       this.sandbox.should.have_text 'fnord'
     end
     
+    it 'can return 0 from callback'
+      this.editor({callback: -{ return 0; }}).find(':input').val('fnord').submit()
+      this.sandbox.should.have_text 0
+    end
+    
+    it 'can return empty string from callback'
+      this.editor({callback: -{ return ''; }}).find(':input').val('fnord').submit()
+      this.sandbox.should.have_text ''
+    end
+    
   end
   
   describe 'custom settings'
