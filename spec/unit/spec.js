@@ -95,6 +95,16 @@ describe 'jquery.editinplace'
     
   end
   
+  describe 'custom settings'
+    
+    it 'should add params as additional parameters to post-url'
+      stub($, 'ajax')
+      var url
+      $.ajax = function(options) { url = options.data; }
+      this.editor({params: 'foo=bar'}).find('form').submit()
+      url.should.include 'foo=bar'
+    end
+  end
 end
 
 __END__
