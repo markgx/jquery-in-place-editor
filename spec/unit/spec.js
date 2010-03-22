@@ -259,6 +259,34 @@ describe 'jquery.editinplace'
       this.editor({save_if_nothing_changed:true}).find('form').submit()
     end
     
+    describe 'can override error_sink to get errors as callbacks'
+    
+      it 'can get empty value error'
+        var sensor = null;
+        this.editor({
+          value_required:true,
+          error_sink:function(id, error){ sensor = error; }
+        }).find(':input').val('').submit()
+        sensor.should.match "Error: You must enter a value to save this field"
+      end
+      
+      it 'can get empty return value from callback error'
+        var sensor = null;
+        this.editor({
+          callback:function(){},
+          error_sink:function(id, error) { sensor = error; }
+        }).find(':input').val('fnord').submit()
+        sensor.should.match "Error: Failed to save value: fnord"
+      end
+      
+      it 'can get xhr submit errors'
+        var sensor = null;
+        stub($, 'ajax').and_return(function(options) { options.error({ responseText:'fnord' }); })
+        this.editor({ error_sink: function(id, error) { sensor = error; } }).find(':input').val('foo').submit()
+        sensor.should.match "fnord"
+      end
+    end
+    
   end
   
   describe 'edit field behaviour'
