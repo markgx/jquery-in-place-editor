@@ -137,7 +137,7 @@ describe 'jquery.editinplace'
     
     it 'can return 0 from callback'
       this.editor({callback: -{ return 0; }}).find(':input').val('fnord').submit()
-      this.sandbox.should.have_text 0
+      this.sandbox.should.have_text "0"
     end
     
     it 'can return empty string from callback'
