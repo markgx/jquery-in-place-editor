@@ -2,7 +2,7 @@
 describe 'jquery.editinplace'
   before
     this.editor = function(options) {
-      return this.sandbox.editInPlace(options).click()
+      return this.sandbox.editInPlace(options).click();
     }
   end
   
@@ -34,7 +34,7 @@ describe 'jquery.editinplace'
     
     it 'will show text during saving'
       stub($, 'ajax')
-      this.editor().find(':input').submit()
+      this.editor().find(':input').val('fnord').submit()
       this.sandbox.should.have_text "Saving..."
     end
     
@@ -66,7 +66,7 @@ describe 'jquery.editinplace'
       
       it 'will submit id of original element as element_id'
         this.sandbox.attr('id', 'fnord')
-        this.editor().find('form').submit()
+        this.editor().find(':input').val('foo').submit()
         this.url.should.include 'element_id=fnord'
       end
       
@@ -77,18 +77,18 @@ describe 'jquery.editinplace'
       
       it 'will submit original html with key original_html'
         this.sandbox.text('fnord')
-        this.editor().find('form').submit()
+        this.editor().find(':input').val('foo').submit()
         this.url.should.include 'original_html=fnord'
       end
       
       it 'will submit on blur'
-        this.editor().find(':input').focus().blur()
+        this.editor().find(':input').val('fnord').focus().blur()
         this.sandbox.should.have_text 'Saving...'
       end
       
       it 'will url encode entered text'
-        var data = null
         stub($.ajax)
+        var data = null
         $.ajax = function(options) { data = options.data; }
         this.editor().find(':input').val('%&=/<>').submit()
         data.should.include 'update_value=%25%26%3D%2F%3C%3E'
@@ -99,9 +99,14 @@ describe 'jquery.editinplace'
         stub($.ajax)
         $.ajax = function(options) { data = options.data; }
         this.sandbox.html('<p onclick="\"%&=/<>\"">')
-        this.editor().find('form').submit()
+        this.editor().find(':input').val('fnord').submit()
         data.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
       end
+    end
+    
+    it 'should not trigger submit if nothing was changed'
+      $.should.receive 'ajax', '0'
+      this.editor().find('form').submit()
     end
     
   end
@@ -117,12 +122,12 @@ describe 'jquery.editinplace'
       this.editor({
         callback: -{ called = true; },
         callbackShowErrors: false // That this needs to be supressed is IMO a bug. If I submit to a callback all controll of the submit operation should be with the callback - or there should be a suite of callbacks to override this
-      }).find('form').submit()
+      }).find(':input').val('fnord').submit()
       called.should.be true
     end
     
     it 'will replace editor with its return value'
-      this.editor({ callback: -{ return 'fnord' } }).find('form').submit()
+      this.editor({ callback: -{ return 'fnord' } }).find(':input').val('fnord').submit()
       this.sandbox.should.have_text 'fnord'
     end
     
@@ -133,7 +138,7 @@ describe 'jquery.editinplace'
     it 'should add params as additional parameters to post-url'
       var url
       stub($, 'ajax').and_return(function(options) { url = options.data; })
-      this.editor({params: 'foo=bar'}).find('form').submit()
+      this.editor({params: 'foo=bar'}).find(':input').val('fnord').submit()
       url.should.include 'foo=bar'
     end
     
@@ -326,6 +331,8 @@ describe 'jquery.editinplace'
       this.sandbox.trigger({type:'keyup', which:27 /* escape */})
       this.sandbox.should.have_text 'fnord'
     end
+    
+    
   end
   
 end
