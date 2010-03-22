@@ -36,7 +36,22 @@ describe 'jquery.editinplace'
     end
     
     it 'should show "click here to add text" if element is empty'
-      this.sandbox = $('<p>').editInPlace().should.have_text "(Click here to add text)"
+      $('<p>').editInPlace().should.have_text "(Click here to add text)"
+    end
+    
+    it 'should always have "inplace_name" as name and "inplace_field" as class'
+      function checkNameAndClass(editor) {
+        editor.find(':input').should.have_attr 'name', 'inplace_value'
+      }
+      checkNameAndClass(this.editor())
+      checkNameAndClass(this.editor({field_type:'textarea'}))
+      checkNameAndClass(this.editor({field_type:'select'}))
+    end
+    
+    it 'will size textareas 25x10'
+      var textarea = this.editor({field_type:'textarea'}).find(':input')
+      textarea.attr('cols').should.be 25
+      textarea.attr('rows').should.be 10
     end
     
     describe 'ajax submissions'
@@ -71,11 +86,6 @@ describe 'jquery.editinplace'
       
     end
     
-    it 'will size textareas 25x10'
-      var textarea = this.editor({field_type:'textarea'}).find(':input')
-      textarea.attr('cols').should.be 25
-      textarea.attr('rows').should.be 10
-    end
   end
   
   describe 'submit to callback'
@@ -108,6 +118,33 @@ describe 'jquery.editinplace'
       $.ajax = function(options) { url = options.data; }
       this.editor({params: 'foo=bar'}).find('form').submit()
       url.should.include 'foo=bar'
+    end
+    
+    it 'can edit default text shown in empty editors'
+      $('<p>').editInPlace({ default_text: 'fnord' }).should.have_text 'fnord'
+    end
+    
+    it 'should show an empty editor even if default_text was shown in the element'
+      $('<p>').editInPlace({ default_text: 'fnord' }).click().find(':input').should.have_text ''
+    end
+    
+    it 'can show as textarea with specified rows and cols'
+      var textarea = this.editor({
+        field_type:'textarea',
+        textarea_rows:23,
+        textarea_cols:42
+      }).find('textarea')
+      
+      textarea.should.have_attr 'rows', 23
+      textarea.should.have_attr 'cols', 42
+    end
+    
+  end
+  
+  describe 'behaviour'
+    
+    it 'should escape content when inserting it into the editor'
+      
     end
   end
 end
