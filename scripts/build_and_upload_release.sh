@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# TODO: consider to create / update the tag when running the release script
-# claim commits for my other email address
-
 USAGE="Usage: $0 <bzr-tag-to-release> <googlecode-username> <googlecode-password>"
 
 RELEASE_TAG=${1:? $USAGE}
