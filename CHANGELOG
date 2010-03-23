@@ -1,22 +1,227 @@
----------------------------------------------------------------------------------
-Version 1.1                                                       14 Februar 2010
----------------------------------------------------------------------------------
- - Almost complete rewrite of internals to make the code more maintainable
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
 
----------------------------------------------------------------------------------
-Version 1.0.2                                                        09 June 2009
----------------------------------------------------------------------------------
- - added a new paramater to cancel alerting display of errors in callback function
+	removed todos from release script
 
----------------------------------------------------------------------------------
-Version 1.0.1                                                       09 April 2009
----------------------------------------------------------------------------------
- - Minor Updates
- - Script: Changed default save and cancel input fields to button elements
- - Demo: Minor text changes and added link to demo.js file
- - Demo: Added local version of jQuery lib instead of linking to google's
- 
----------------------------------------------------------------------------------
-Version 1.0.0                                                       06 April 2009
----------------------------------------------------------------------------------
- - Initial release
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated release script to say what it does and tagg and push the release
+
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	added changelog updating to the release script
+
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	ignoring script file that stores my username and password, so I don't accidentally commit it. :)
+
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	added scripts to automate releasing to google code
+
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	ignoring build directory
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed select support to not submit the default choice accidentally
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	experimental changes to get rhino to work (still a total failure though)
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	reworked demo to go all through the callback function so no server side functionality is required for the demo
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	bugfix for testfailure resulting from jspec 3.3.3's strictire matching comparison
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated jspec to 3.3.3
+
+2010-03-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	tried to activate failures only mode
+
+2010-03-18  Martin Haecker  <spamfaenger@gmx.de>
+
+	cleanup and comments
+
+2010-03-05  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed bug where changing the text of an inline editor that put its own default text in the editor after it was created would lead to it loosing that value on click
+
+2010-03-05  Martin Haecker  <spamfaenger@gmx.de>
+
+	new version of env.js
+
+2010-03-01  Martin Haecker  <spamfaenger@gmx.de>
+
+	setting background color directly and not via the background property
+
+2010-03-01  Martin Haecker  <spamfaenger@gmx.de>
+
+	do not overwrite background-color if it hover_class is specified
+
+2010-02-19  Martin Haecker  <spamfaenger@gmx.de>
+
+	trying failuresOnly option but it doesn't seem to work. :/
+
+2010-02-19  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated jspec version
+
+2010-02-19  Martin Haecker  <spamfaenger@gmx.de>
+
+	removed callbackShowErrors option as there is now an error sink that can be used to disable all errors if required
+
+2010-02-19  Martin Haecker  <spamfaenger@gmx.de>
+
+	changed refact comments
+
+2010-02-18  Martin Haecker  <spamfaenger@gmx.de>
+
+	added error_sink option to get all error messages via a callback out of the editor
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	removed leftover bug comment
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	allow 0 or empty string as valid return values from submit callback
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	do not commit if nothing was changed in the editor
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	changes to not commit if nothing was changed in the editor - even if commit was pressed
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	escape submitted text so that special charactes like &/=<> do not make problems
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	removed stray debugger statements
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	added changelog entry and added information about patches
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	added changelog entry and added information about patches
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	removed unneeded demo files
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	new feature: allow css class for hover instead of immediate values
+
+2010-02-14  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	updated testrunners to allow mocking of ajax requests
+
+2010-02-13  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	preventing multiple editors on the same element and changed the way the editor is preventing opening it twice to not use an instance variable
+
+2010-02-13  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	finished objectifying the editor and the first round of method breakdown into relatively manageable bits
+
+2010-02-13  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	more preparation for breakdown into smaller functions + small reorganizaton of testsuite to make it shorter and sweeter
+
+2010-02-13  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	expanded checks and documentation for select element to allow extra speces and real arrays for select option definitions
+
+2010-02-13  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	more cleanup and small bugfixes to how selects are generated
+
+2010-02-11  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	slowly moving the methods into the InlineEditor object and breaking them down into smaller ones. Plus fix to the escaping of stuff in the inline editor
+
+2010-02-11  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	even more breaking down into functions for prettier code
+
+2010-02-11  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	running the demo from the latest source
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	wrapped in (function($){})(jQuery) for more compatibility and removed the String prototype changes
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	reworked intro comment to contain refact and todo sections
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	merged documentation and custom settings declaration to get rid of duplication
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	first batch of testcases for the inline editor
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	added some todos
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	updated testrunners to run jquery.editinplace.js (rhino doesn't work yet as the latest release of env.js fails to load propperly
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	added support libraries for rhino and jquery
+
+2010-02-07  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	removed leftover from template - tests are now written for jquery.editinplace.js
+
+2010-02-06  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	moved edit in place into lib folder
+
+2010-02-06  Martin Haecker  <mhaecker@cs.tu-berlin.de>
+
+	added local jspec instance
+
+2009-06-09  DaveHauenstein
+
+	added a new parameter
+
+2009-04-09  davehauenstein
+
+	- Minor Updates
+	- Script: Changed default save and cancel input fields to button elements
+	- Demo: Minor text changes and added link to demo.js file
+	- Demo: Added local version of jQuery lib instead of linking to google's
+
+2009-04-06  davehauenstein
+
+	updated link in demo
+
+2009-04-06  davehauenstein
+
+	initial import
+
+2009-04-06  
+
+	Initial directory structure.
+
