@@ -64,6 +64,10 @@ describe 'jquery.editinplace'
         stub($, 'ajax').and_return(function(options){ _this.url = options.data; })
       end
       
+      after_each
+        this.url = undefined
+      end
+      
       it 'will submit id of original element as element_id'
         this.sandbox.attr('id', 'fnord')
         this.editor().find(':input').val('foo').submit()
@@ -87,21 +91,24 @@ describe 'jquery.editinplace'
       end
       
       it 'will url encode entered text'
-        stub($.ajax)
-        var data = null
-        $.ajax = function(options) { data = options.data; }
         this.editor().find(':input').val('%&=/<>').submit()
-        data.should.include 'update_value=%25%26%3D%2F%3C%3E'
+        this.url.should.include 'update_value=%25%26%3D%2F%3C%3E'
       end
       
       it 'will url encode original html correctly'
-        var data = null
-        stub($.ajax)
-        $.ajax = function(options) { data = options.data; }
         this.sandbox.html('<p onclick="\"%&=/<>\"">')
         this.editor().find(':input').val('fnord').submit()
-        data.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
+        this.url.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
       end
+      
+      it 'should not loose the param option on the second submit'
+        var editor = this.editor({params: 'foo=bar'});
+        editor.click().find(':input').val('fnord').submit()
+        this.url.should.include 'foo=bar'
+        editor.click().find(':input').val(23).submit()
+        this.url.should.include 'foo=bar'
+      end
+      
     end
     
     it 'should not trigger submit if nothing was changed'
