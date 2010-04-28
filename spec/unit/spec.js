@@ -30,8 +30,8 @@ describe 'jquery.editinplace'
     end
     
     it 'will hover to yellow'
-      this.sandbox.editInPlace().mouseover().css('background').should.equal 'rgb(255, 255, 204)'
-      this.sandbox.mouseout().css('background').should.equal 'transparent'
+      this.sandbox.editInPlace().mouseover().css('background-color').should.equal 'rgb(255, 255, 204)'
+      this.sandbox.mouseout().css('background-color').should.equal 'transparent'
     end
     
     it 'will show text during saving'
@@ -421,12 +421,12 @@ describe 'jquery.editinplace'
     
     it 'should not reset background color on submit if hover_class is specified'
       this.editor({hover_class: 'fnord'}).find(':input').val('fnord').submit();
-      this.sandbox.css('background-color').should.be_within ['', 'inherit']
+      this.sandbox.css('background-color').should.be_within ['', 'inherit', 'transparent']
     end
     
     it 'should not reset background color on cancel if hover_class is specified'
       this.editor({hover_class: 'fnord'}).find('form').trigger({type:'keyup', which:27 /* escape */})
-      this.sandbox.css('background-color').should.be_within ['', 'inherit']
+      this.sandbox.css('background-color').should.be_within ['', 'inherit', 'transparent']
     end
     
     it "should respect saving_animation_color (doesn't yet really test that the target color is reached though)"
@@ -525,7 +525,23 @@ describe 'jquery.editinplace'
       this.sandbox.should.have_text 'fnord'
     end
     
-    
+  end
+  
+  describe 'browser specific behaviour'
+    it "firefox does send other in place editors blur event (as the browser doesn't do it)"
+      // can't return early out of an eval context....
+      if ($.browser.mozilla) {
+        // cold need to encapsulate in div
+        this.sandbox = $('<div><p/><p/></div>')
+        this.sandbox.find('p').editInPlace()
+        // open both editors at the same time
+        this.sandbox.find('p:first').click()
+        debugger
+        this.sandbox.find('p:last').click()
+        this.sandbox.find(':input').should.have_length 1
+        this.sandbox.should.have_tag 'p:last :input'
+      }
+    end
   end
   
 end
