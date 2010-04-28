@@ -123,6 +123,83 @@ describe 'jquery.editinplace'
     
   end
   
+  describe 'marker classes'
+    
+    it 'should set .editInPlace-active when activating editor'
+      this.sandbox.should.not.have_class '.editInPlace-active'
+      this.sandbox.editInPlace().click().should.have_class '.editInPlace-active'
+    end
+    
+    it 'should remove .editInPlace-active when editor finished submitting'
+      var editor = this.editor()
+      editor.should.have_class '.editInPlace-active'
+      editor.find(':input').val('fnord').submit();
+      editor.should.not.have_class '.editInPlace-active'
+    end
+    
+    it 'should remove .editInPlace-active when cancelling the editor'
+      this.editor().find(':input').submit();
+      this.sandbox.should.not.have_class '.editInPlace-active'
+    end
+    
+    it 'should remove .editInPlace-active when the callback returns if no animation callbacks are used'
+      var editor = this.editor({ callback: function(){ return 'foo'; } })
+      editor.find(':input').val('bar').submit()
+      editor.should.not.have_class '.editInPlace-active'
+    end
+    
+    it 'should not remove .editInPlace-active if didStartSaving() is called before callback returns'
+      var callbacks;
+      var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
+        callbacks = animationCallbacks;
+        callbacks.didStartSaving();
+        return 'fnord';
+      }})
+      editor.find(':input').val('fnord').submit()
+      editor.should.have_class '.editInPlace-active'
+      callbacks.didEndSaving();
+      editor.should.not.have_class '.editInPlace-active'
+    end
+    
+    it 'should ignore animation callbacks after submit callback has returned'
+      var callbacks;
+      var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
+        callbacks = animationCallbacks;
+        return 'fnord';
+      }})
+      editor.find(':input').val('fnord').submit()
+      editor.should.not.have_class '.editInPlace-active'
+      
+      -{ callbacks.didStartSaving() }.should.throw_error /Cannot call/
+      -{ callbacks.didEndSaving() }.should.throw_error /Cannot call/
+    end
+    
+    it 'should not call didEndSaving() before didStartSaving() was called'
+      var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
+        -{ animationCallbacks.didEndSaving() }.should.throw_error /Cannot call/
+        return 'fnord';
+      }})
+      editor.find(':input').val('fnord').submit()
+    end
+    
+    it 'should allow to call both callbacks before the callback returns'
+      var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
+        animationCallbacks.didStartSaving();
+        animationCallbacks.didEndSaving();
+        return 'fnord';
+      }})
+      editor.find(':input').val('fnord').submit()
+      
+      var clickEvents = editor.data('events').click
+      var count = 0
+      for (var key in clickEvents)
+        count++
+      count.should.be 1
+    end
+    
+    // TODO:  guard against calling both callbacks before the submit callback returns
+  end
+  
   describe 'submit to callback'
     
     before
