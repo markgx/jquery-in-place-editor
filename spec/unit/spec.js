@@ -200,6 +200,40 @@ describe 'jquery.editinplace'
     
   end
   
+  describe 'animations during save'
+    
+    it 'should animate during ajax save to server'
+      var complete
+      stub($, 'ajax').and_return(function(options) { complete = options.complete; })
+      this.editor().find(':input').val('fnord').submit();
+      
+      this.sandbox.is(':animated').should.be true
+      complete();
+      this.sandbox.is(':animated').should.be false
+    end
+    
+    it 'should animate when callbacks are called when submitting to callback'
+      var complete
+      var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
+        animationCallbacks.didStartSaving();
+        complete = animationCallbacks.didEndSaving;
+        return '';
+      }})
+      editor.find(':input').val('fnord').submit()
+      
+      this.sandbox.is(':animated').should.be true
+      complete();
+      this.sandbox.is(':animated').should.be false
+    end
+    
+    it 'should not animate if callbacks are not called when submitting to callback'
+      var editor = this.editor({ callback: function() { return ''; }})
+      editor.find(':input').val('fnord').submit()
+      this.sandbox.is(':animated').should.be false
+    end
+    
+  end
+
   describe 'submit to callback'
     
     before
