@@ -333,7 +333,7 @@ describe 'jquery.editinplace'
         this.editor({field_type:this.type}).find(':input').should.have_value 'fnord'
       end
       
-      it 'should restore original content when canceled out of'
+      it 'should restore original content when canceled out of ' + this.type
         this.sandbox.text('fnord')
         this.editor({
           field_type:this.type,
@@ -342,7 +342,7 @@ describe 'jquery.editinplace'
         this.sandbox.should.have_text 'fnord'
       end
       
-      it 'should submit enterd value to function when submitting'
+      it 'should submit enterd value to function when submitting ' + this.type
         var sensor = null
         var input = this.editor({
           field_type:this.type,
@@ -352,12 +352,12 @@ describe 'jquery.editinplace'
         sensor.should.equal 'fnord'
       end
       
-      it 'should not remove content, even if it is identical to the default_text'
+      it 'should not remove content, even if it is identical to the default_text ' + this.type
         this.sandbox = $('<p>fnord</p>')
         this.editor({ default_text:'fnord' }).find(':input').should.have_value 'fnord'
       end
       
-      it 'should present an empty editor if the default text was entered by the editor itself'
+      it 'should present an empty editor if the default text was entered by the editor itself ' + this.type
         this.sandbox = $('<p></p>').editInPlace({ default_text: 'fnord', on_blur: 'cancel' })
         this.sandbox.should.have_text 'fnord'
         this.sandbox.click().find(':input').should.have_value ''
@@ -409,4 +409,3 @@ describe 'jquery.editinplace'
 end
 
 __END__
-
