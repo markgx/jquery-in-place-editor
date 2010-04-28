@@ -11,6 +11,8 @@ describe 'jquery.editinplace'
     // and on inserting it, that will whipe the test results. (I don't quite understand why)
     mock_request().and_return('fnord')
     this.sandbox = $('<p>Some text</p>')
+    // Workaround to jquery-ui bug that it can't reliably deal with document fragments not having a color at their root element
+    this.sandbox.parent().css({ backgroundColor:'transparent' })
   end
   
   describe 'default settings'
@@ -425,6 +427,15 @@ describe 'jquery.editinplace'
     it 'should not reset background color on cancel if hover_class is specified'
       this.editor({hover_class: 'fnord'}).find('form').trigger({type:'keyup', which:27 /* escape */})
       this.sandbox.css('background-color').should.be_within ['', 'inherit']
+    end
+    
+    it "should respect saving_animation_color (doesn't yet really test that the target color is reached though)"
+      stub($, 'ajax').and_return($)
+      this.editor({ saving_animation_color: '#002342' }).find(':input').val('fnord').submit()
+      this.sandbox.css('backgroundColor').should.be 'rgb(255, 255, 255)'
+      tick(200) // first animation not yet finished
+      this.sandbox.css('backgroundColor').should.not.be 'rgb(255, 255, 255)'
+      this.sandbox.is(':animated').should.be true
     end
   end
   
