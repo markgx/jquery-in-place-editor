@@ -13,10 +13,9 @@
 		<script>
 			function runSuites() {
 				JSpec
-				.exec('unit/spec.js')
-				 // failuresOnly: true, should provide more leaner page - but doesn't seem to work
-				.run({ failuresOnly: true, fixturePath: 'fixtures' })
-				.report()
+					.exec('unit/spec.js')
+					.run({ failuresOnly: true, fixturePath: 'fixtures' })
+					.report()
 			}
 		</script>
 	</head>

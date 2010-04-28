@@ -143,7 +143,7 @@ describe 'jquery.editinplace'
     end
     
     it 'should remove .editInPlace-active when the callback returns if no animation callbacks are used'
-      var editor = this.editor({ callback: function(){ return 'foo'; } })
+      var editor = this.editor({ callback: function(){ return ''; } })
       editor.find(':input').val('bar').submit()
       editor.should.not.have_class '.editInPlace-active'
     end
@@ -153,7 +153,7 @@ describe 'jquery.editinplace'
       var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
         callbacks = animationCallbacks;
         callbacks.didStartSaving();
-        return 'fnord';
+        return '';
       }})
       editor.find(':input').val('fnord').submit()
       editor.should.have_class '.editInPlace-active'
@@ -165,7 +165,7 @@ describe 'jquery.editinplace'
       var callbacks;
       var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
         callbacks = animationCallbacks;
-        return 'fnord';
+        return '';
       }})
       editor.find(':input').val('fnord').submit()
       editor.should.not.have_class '.editInPlace-active'
@@ -177,7 +177,7 @@ describe 'jquery.editinplace'
     it 'should not call didEndSaving() before didStartSaving() was called'
       var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
         -{ animationCallbacks.didEndSaving() }.should.throw_error /Cannot call/
-        return 'fnord';
+        return '';
       }})
       editor.find(':input').val('fnord').submit()
     end
@@ -186,10 +186,11 @@ describe 'jquery.editinplace'
       var editor = this.editor({ callback: function(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
         animationCallbacks.didStartSaving();
         animationCallbacks.didEndSaving();
-        return 'fnord';
+        return '';
       }})
       editor.find(':input').val('fnord').submit()
       
+      // direct sensing is not possible, so we check that only one inline editor is attached to the click event now
       var clickEvents = editor.data('events').click
       var count = 0
       for (var key in clickEvents)
@@ -197,7 +198,6 @@ describe 'jquery.editinplace'
       count.should.be 1
     end
     
-    // TODO:  guard against calling both callbacks before the submit callback returns
   end
   
   describe 'submit to callback'
@@ -269,14 +269,14 @@ describe 'jquery.editinplace'
             select_options:'first,second,third'
           }, overideOptions)
         }
-        this.options = function(settings) {
+        this.editorOptions = function(settings) {
           // get() makes the assertions output the dom instead of the last selector if they fail...
           return this.editor(this.selectOptions(settings)).find('option').get()
         }
       end
       
       it 'should show popup with custom values'
-        var options = this.options({ select_options:'foo,bar' })
+        var options = this.editorOptions({ select_options:'foo,bar' })
         options.should.have_length 3
         options[1].should.have_text 'foo'
         options[1].should.have_value 'foo'
@@ -285,47 +285,47 @@ describe 'jquery.editinplace'
       end
       
       it 'should have default value of "" for default value'
-        var options = this.options({ select_text:'fnord' })
+        var options = this.editorOptions({ select_text:'fnord' })
         options[0].should.have_text 'fnord'
         options[0].should.have_value ''
       end
       
       it 'should select item in popup which matches initial text'
         this.sandbox = $('<p>text</p>')
-        var options = this.options({ select_options:'foo,text,bar' })
+        var options = this.editorOptions({ select_options:'foo,text,bar' })
         options.should.have_length 4
         options[2].should.be_selected
       end
       
       it 'should allow select_options to specify different value and text as text:value'
-        var options = this.options({ select_options:'text:value' })
+        var options = this.editorOptions({ select_options:'text:value' })
         options[1].should.have_value 'value'
         options[1].should.have_text 'text'
       end
       
       it 'should not show spaces in popup specification in dom'
-        var options = this.options({ select_options:'foo, bar, baz' })
+        var options = this.editorOptions({ select_options:'foo, bar, baz' })
         options.should.have_length 4
         options[2].should.have_text 'bar'
         options[2].should.have_value 'bar'
       end
       
       it 'should allow an array of strings for select values'
-        var options = this.options({ select_options:['foo', 'bar'] })
+        var options = this.editorOptions({ select_options:['foo', 'bar'] })
         options.should.have_length 3
         options[1].should.have_text 'foo'
         options[1].should.have_value 'foo'
       end
       
       it 'should allow array of array of strings to specify selected value and text as ["text", "value"]'
-        var options = this.options({ select_options:[['text', 'value']] })
+        var options = this.editorOptions({ select_options:[['text', 'value']] })
         options.should.have_length 2
         options[1].should.have_text 'text'
         options[1].should.have_value 'value'
       end
       
       it 'should disable default choice in select'
-        var options = this.options()
+        var options = this.editorOptions()
         options[0].should.be_disabled
       end
       
