@@ -536,7 +536,6 @@ describe 'jquery.editinplace'
         this.sandbox.find('p').editInPlace()
         // open both editors at the same time
         this.sandbox.find('p:first').click()
-        debugger
         this.sandbox.find('p:last').click()
         this.sandbox.find(':input').should.have_length 1
         this.sandbox.should.have_tag 'p:last :input'
