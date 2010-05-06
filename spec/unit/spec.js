@@ -476,11 +476,11 @@ describe 'jquery.editinplace'
       
       it 'should not remove content, even if it is identical to the default_text ' + this.type
         this.sandbox = $('<p>fnord</p>')
-        this.editor({ default_text:'fnord' }).find(':input').should.have_value 'fnord'
+        this.editor({ default_text:'fnord', field_type:this.type }).find(':input').should.have_value 'fnord'
       end
       
       it 'should present an empty editor if the default text was entered by the editor itself ' + this.type
-        this.sandbox = $('<p></p>').editInPlace({ default_text: 'fnord', on_blur: 'cancel' })
+        this.sandbox = $('<p></p>').editInPlace({ default_text: 'fnord', on_blur: 'cancel' , field_type:this.type})
         this.sandbox.should.have_text 'fnord'
         this.sandbox.click().find(':input').should.have_value ''
         // also the second time
@@ -492,6 +492,18 @@ describe 'jquery.editinplace'
         this.sandbox.click().find(':input').should.have_value 'fnord'
       end
       
+      it 'should cancel with enter if no changes where made'
+        this.sandbox.editInPlace({field_type:this.type}).click()
+        
+        this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
+        this.sandbox.should.not.have_tag 'form'
+      end
+      
+      it 'should submit with enter if changes where made'
+        this.sandbox.editInPlace({field_type:this.type}).click().find(':input').val('fnord')
+        this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
+        this.sandbox.should.not.have_tag 'form'
+      end
     })
     
     it 'will ignore multiple attempts to add an inline editor'
