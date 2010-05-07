@@ -447,7 +447,18 @@ describe 'jquery.editinplace'
       })
       sensor.text().should.be previousSandbox.text()
     end
-  
+    
+    it 'should call postclose after editor is closed'
+      var originalText = this.sandbox.text()
+      var sensor
+      this.editor({ postclose: function(domNode) {
+        sensor = domNode.clone()
+      }})
+      this.sandbox.click().find(':input').val('fnord').blur()
+      sensor.text().should.equal "fnord"
+      sensor.children().should.be_empty
+    end
+    
   end
   
   describe 'edit field behaviour'
