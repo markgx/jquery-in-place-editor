@@ -371,7 +371,7 @@ describe 'jquery.editinplace'
         })).find(':input').val('').submit()
         this.sandbox.should.have_text "Some text"
       end
-      
+    
     end
     
     it 'should throw if unknown field_type is chosen'
@@ -437,6 +437,17 @@ describe 'jquery.editinplace'
       this.sandbox.css('backgroundColor').should.not.be 'rgb(255, 255, 255)'
       this.sandbox.is(':animated').should.be true
     end
+    
+    it 'shoud call preinit callback on click'
+      var sensor = false
+      var previousSandbox = this.sandbox.clone(true)
+      this.sandbox.text().should.be previousSandbox.text()
+      var editor = this.editor({
+        preinit: function(domNode){ sensor = domNode.clone(true); return ''; },
+      })
+      sensor.text().should.be previousSandbox.text()
+    end
+  
   end
   
   describe 'edit field behaviour'
