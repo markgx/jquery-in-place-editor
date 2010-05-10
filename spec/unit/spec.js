@@ -448,14 +448,33 @@ describe 'jquery.editinplace'
       sensor.text().should.be previousSandbox.text()
     end
     
+    it 'should not open editor if preinit returns false'
+      this.editor({ preinit: -{ return false; }}).click()
+      this.sandbox.should.not.have_tag ':input'
+    end
+    
+    it 'should open the editor if preinit returns undefined (i.e. nothing)'
+      this.editor({ preinit: -{}}).click()
+      this.sandbox.should.have_tag ':input'
+    end
+    
     it 'should call postclose after editor is closed'
-      var originalText = this.sandbox.text()
       var sensor
       this.editor({ postclose: function(domNode) {
         sensor = domNode.clone()
       }})
       this.sandbox.click().find(':input').val('fnord').blur()
       sensor.text().should.equal "fnord"
+      sensor.children().should.be_empty
+    end
+    
+    it 'should send postclose callback after cancel'
+      var sensor
+      this.editor({ postclose: function(domNode) {
+        sensor = domNode.clone()
+      }})
+      this.sandbox.click().find(':input').blur()
+      sensor.text().should.equal "Some text"
       sensor.children().should.be_empty
     end
     
