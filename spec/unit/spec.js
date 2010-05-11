@@ -2,7 +2,10 @@
 describe 'jquery.editinplace'
   before
     this.editor = function(options) {
-      return this.sandbox.editInPlace(options).click();
+      return this.enableEditor(options).click();
+    }
+    this.enableEditor = function(options) {
+      return this.sandbox.editInPlace(options);
     }
   end
   
@@ -449,13 +452,45 @@ describe 'jquery.editinplace'
     end
     
     it 'should not open editor if preinit returns false'
-      this.editor({ preinit: -{ return false; }}).click()
+      this.editor({ preinit: -{ return false; }})
       this.sandbox.should.not.have_tag ':input'
     end
     
     it 'should open the editor if preinit returns undefined (i.e. nothing)'
-      this.editor({ preinit: -{}}).click()
+      this.editor({ preinit: -{}})
       this.sandbox.should.have_tag ':input'
+    end
+    
+    it 'should not open the editor if the clicked element is a cancel element'
+      var child = $('<em>is bold</em>')
+      this.sandbox.append(child)
+      this.enableEditor({ cancel: "em"})
+      child.click()
+      this.sandbox.should.not.have_tag ':input'
+    end
+    
+    it 'should not open the editor if the clicked element is child of cancelled element'
+      var child = $('<em>is bold</em>')
+      this.sandbox.append(child)
+      this.enableEditor({ cancel: "p"})
+      child.click()
+      this.sandbox.should.not.have_tag ':input'
+    end
+    
+    it 'should open the editor if cancel is empty'
+      this.editor({ cancel: ""})
+      this.sandbox.should.have_tag ':input'
+    end
+    
+    it 'should not open the editor even if two elements are specified'
+      this.editor({ cancel: "a, p"})
+      this.sandbox.should.not.have_tag ':input'
+    end
+    
+    it 'should not call preinit if element is cancelled'
+      var sensor = 'not called'
+      this.editor({ cancel: "p", preinit: -{sensor = 'preinit'}})
+      sensor.should.be 'not called'
     end
     
     it 'should call postclose after editor is closed'
