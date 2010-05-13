@@ -1,7 +1,6 @@
 TODO
-----
+====
 
-- Specify deprecation cycles so people can prepare for chnges / know what has been deprecated
 - Allow the user to chose if html source should be edited or text (default to text). Probably needs a way
   for the user to decide how the result should be embedded (think about editing wiki-text and inserting rendered html)
 - Update to jQuery 1.4.x, aparently something breaks
