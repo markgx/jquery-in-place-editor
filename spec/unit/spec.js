@@ -451,76 +451,136 @@ describe 'jquery.editinplace'
       this.sandbox.is(':animated').should.be true
     end
     
-    it 'shoud call preinit callback on click'
-      var sensor = false
-      var previousSandbox = this.sandbox.clone(true)
-      this.sandbox.text().should.be previousSandbox.text()
-      var editor = this.editor({
-        preinit: function(domNode){ sensor = domNode.clone(true); return ''; },
-      })
-      sensor.text().should.be previousSandbox.text()
+    describe 'callbacks'
+      
+      it 'shoud call preinit callback on click'
+        var sensor = false
+        var previousSandbox = this.sandbox.clone(true)
+        this.sandbox.text().should.be previousSandbox.text()
+        var editor = this.editor({
+          preinit: function(domNode){ sensor = domNode.clone(true); return ''; },
+        })
+        sensor.text().should.be previousSandbox.text()
+      end
+      
+      it 'should not open editor if preinit returns false'
+        this.editor({ preinit: -{ return false; }})
+        this.sandbox.should.not.have_tag ':input'
+      end
+      
+      it 'should open the editor if preinit returns undefined (i.e. nothing)'
+        this.editor({ preinit: -{}})
+        this.sandbox.should.have_tag ':input'
+      end
+      
+      it 'should not call preinit if element is cancelled'
+        var sensor = 'not called'
+        this.editor({ cancel: "p", preinit: -{sensor = 'preinit'}})
+        sensor.should.be 'not called'
+      end
+      
+      it 'should call postclose after editor is closed'
+        var sensor
+        this.editor({ postclose: function(domNode) {
+          sensor = domNode.clone()
+        }})
+        this.sandbox.click().find(':input').val('fnord').blur()
+        sensor.text().should.equal "fnord"
+        sensor.children().should.be_empty
+      end
+      
+      it 'should send postclose callback after cancel'
+        var sensor
+        this.editor({ postclose: function(domNode) {
+          sensor = domNode.clone()
+        }})
+        this.sandbox.click().find(':input').blur()
+        sensor.text().should.equal "Some text"
+        sensor.children().should.be_empty
+      end
+      
+      describe 'uses dom element of editor as this for callbacks'
+        
+        before
+          this.edit = function(options, value) {
+            value = (undefined === value) ? 'fnord' : value;
+            this.editor(options).find(':input').val(value).blur();
+          }
+          this.sensed = undefined;
+          var that = this;
+          this.sensor = function sensor(){ that.sensed = this; return ''; }
+        end
+        
+        after_each
+          this.sensed.should.be this.sandbox[0]
+        end
+        
+        it 'callback'
+          this.edit({ callback: this.sensor })
+        end
+        
+        it 'success'
+          var serverSuccessCallback;
+          stub($, 'ajax').and_return(function(options) { serverSuccessCallback = options.success; })
+          this.edit({ success: this.sensor })
+          serverSuccessCallback('fnord')
+        end
+        
+        it 'error'
+          var serverErrorCallback;
+          stub($, 'ajax').and_return(function(options) { serverErrorCallback = options.error; })
+          this.edit({ error: this.sensor })
+          serverErrorCallback()
+        end
+        
+        it 'error_sink'
+          this.edit({ error_sink: this.sensor, callback: -{} /* triggers error */ })
+        end
+        
+        it 'preinit'
+          this.edit({ preinit: this.sensor })
+        end
+        
+        it 'postclose'
+          this.edit({ postclose: this.sensor })
+        end
+        
+      end
+      
     end
     
-    it 'should not open editor if preinit returns false'
-      this.editor({ preinit: -{ return false; }})
-      this.sandbox.should.not.have_tag ':input'
+    describe 'cancelling elements'
+    
+      it 'should not open the editor if the clicked element is a cancel element'
+        var child = $('<em>is bold</em>')
+        this.sandbox.append(child)
+        this.enableEditor({ cancel: "em"})
+        child.click()
+        this.sandbox.should.not.have_tag ':input'
+      end
+    
+      it 'should not open the editor if the clicked element is child of cancelled element'
+        var child = $('<em>is bold</em>')
+        this.sandbox.append(child)
+        this.enableEditor({ cancel: "p"})
+        child.click()
+        this.sandbox.should.not.have_tag ':input'
+      end
+    
+      it 'should open the editor if cancel is empty'
+        this.editor({ cancel: ""})
+        this.sandbox.should.have_tag ':input'
+      end
+    
+      it 'should not open the editor even clicking on one of two cancel elements'
+        this.editor({ cancel: "a, p"})
+        this.sandbox.should.not.have_tag ':input'
+      end
+      
     end
     
-    it 'should open the editor if preinit returns undefined (i.e. nothing)'
-      this.editor({ preinit: -{}})
-      this.sandbox.should.have_tag ':input'
-    end
-    
-    it 'should not open the editor if the clicked element is a cancel element'
-      var child = $('<em>is bold</em>')
-      this.sandbox.append(child)
-      this.enableEditor({ cancel: "em"})
-      child.click()
-      this.sandbox.should.not.have_tag ':input'
-    end
-    
-    it 'should not open the editor if the clicked element is child of cancelled element'
-      var child = $('<em>is bold</em>')
-      this.sandbox.append(child)
-      this.enableEditor({ cancel: "p"})
-      child.click()
-      this.sandbox.should.not.have_tag ':input'
-    end
-    
-    it 'should open the editor if cancel is empty'
-      this.editor({ cancel: ""})
-      this.sandbox.should.have_tag ':input'
-    end
-    
-    it 'should not open the editor even if two elements are specified'
-      this.editor({ cancel: "a, p"})
-      this.sandbox.should.not.have_tag ':input'
-    end
-    
-    it 'should not call preinit if element is cancelled'
-      var sensor = 'not called'
-      this.editor({ cancel: "p", preinit: -{sensor = 'preinit'}})
-      sensor.should.be 'not called'
-    end
-    
-    it 'should call postclose after editor is closed'
-      var sensor
-      this.editor({ postclose: function(domNode) {
-        sensor = domNode.clone()
-      }})
-      this.sandbox.click().find(':input').val('fnord').blur()
-      sensor.text().should.equal "fnord"
-      sensor.children().should.be_empty
-    end
-    
-    it 'should send postclose callback after cancel'
-      var sensor
-      this.editor({ postclose: function(domNode) {
-        sensor = domNode.clone()
-      }})
-      this.sandbox.click().find(':input').blur()
-      sensor.text().should.equal "Some text"
-      sensor.children().should.be_empty
+    describe 'can map legacy preference names to new preference names'
+      
     end
     
   end
