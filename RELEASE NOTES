@@ -1,0 +1,5 @@
+Version 2.1
+-----------
+
+Backwards-Incompatible Changes from 2.0:
+- All callbacks now recieve the DOM-Node of the editor set as their this context

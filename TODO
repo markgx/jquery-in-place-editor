@@ -1,0 +1,71 @@
+TODO
+----
+
+- Specify deprecation cycles so people can prepare for chnges / know what has been deprecated
+- Allow the user to chose if html source should be edited or text (default to text). Probably needs a way
+  for the user to decide how the result should be embedded (think about editing wiki-text and inserting rendered html)
+- Update to jQuery 1.4.x, aparently something breaks
+- expand the interface to submit to functions to make it easier to integrate into custom applications
+  (fold in show progress, offer callbacks for different lifecycle events, ...)
+- consider to pass the original dom element instead of it's id in the callback function. (However $('#' + original_id) also accomplishes this)
+- support live events to trigger inline editing to ease highly dynamic websites better
+- select on choosing if no buttons are shown (should be able to disable this if wanted)
+- Allow the editor to show up on hoverig above it (make sure to do it in a way that doesn't crash IE 7)
+- More animations during submit: show spinner
+- Unify usage of text and html to take and deliver content to the inline editor and enable the user to choose with a setting (document carefully as that will change the default behaviour)
+  Solve by callback interface that can transform the code if needed.
+- Allow continous validation / transformation while the user types. I.e. wiki-edit with live preview (from server / function)
+- add validation callback to be asked before any submitting (this could also be called continuous while editing 
+  (for each character?) maybe a dedicated callback for each would be valuable)
+- allow aditional_params to be set as json/object that is then serialized with correct encoding on submit
+- consider size parameter for the inline edit box (but this can already nicely accomplished through css)
+- Replace argument list of saving callback with dictionary
+- Option to always restore the original content, could help for editors that you would always want to render empty, i.e. they display their results somewhere else
+- Change all callbacks to get the editor dom node as the first argument, so the editor object itself is never exposed
+- Consider to expose the options argument as a second argument to all callbacks
+- Consider adding $(..).editInPlace().destroy() or something similar to completely remove the editor
+- Support overriding individual options with the metadata plugin
+- Option to load URL for editor content
+- Group options sensibly and have section headers for them.
+- Move documentation out of edit in place into the README and update that
+- deprecate callback arguments that are no longer usefull / needed. For example:
+  - The first argument of the 'callback' option was removed. Use $(this).attr('id') instead if you need it.
+  - success and error callbacks got the editor DOM element as the second argument. Use $(this) instead.
+
+REFACT
+------
+
+- include spinner image as data url into javascript (add code that writes this as mime thingy for IE)
+- consider to enable the client to specify a prefix / namespace for all classes in the inplace editor to make it easier to avoid clashes with outside css
+- Rename settings so they make more sense (e.g. saving_image -> saving_image_url) but keep backwards compatible to old settings
+  also make all settings consistent in their underscore usage (i.e. don't use any. :)
+  params -> extra_submit_parameters / context_parametes
+- consider to accept string parameters like jquery UI for 'disable', 'enable', 'remove' etc.
+- Rework parameters of success and error server callback
+
+Proposed Callbacks
+------------------
+
+// maybe combine should and will callbacks?
+shouldOpen:
+willOpen: // could be usefull to customize settings?
+didOpen:
+
+willShowContent: // to transform entered text. E.g. fetch markup of rendered text
+
+// how to deal with validation?
+willEnterCharacter:
+didEnterCharacter:
+// seems not enough, doesn't handle select fields
+
+shouldClose:
+willClose:
+didClose:
+
+// transforming entered stuff to customize it, i.e. render markdown or something similar
+// this should also work when the editor submits the data to the server itself
+// need callback to compute the data that is sent to the server (e.g. to provide arbitrary json)
+// need ability to specify http verb to use (PUT, POST, DELETE, etc.)
+
+shouldReinit:
+// could be able to customize reinit behaviour?
