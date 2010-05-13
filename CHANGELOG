@@ -1,3 +1,15 @@
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	markdowned the documentation and moved more of it out of the source file so the source code is shorter and it is clearer where to find what information
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	added some documentation and moved a test to a more logical location
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated changelog before release
+
 2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
 
 	simplified test suite by introducing edit openEditor and enableEditor helpers that set some default default settings
