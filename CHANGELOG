@@ -1,5 +1,21 @@
 2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
 
+	simplified test suite by introducing edit openEditor and enableEditor helpers that set some default default settings
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	reworked all callbacks to receive the editor dom node as their this argument
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	moved documentation into RELEASE NOTES and TODO files
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated changelog before release
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
 	the editor will now throw if you provide neither a callback or a url parameter to it. This lead to quite some fallout in the testsuite as it still enabled lots of editors with neither option...
 
 2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
