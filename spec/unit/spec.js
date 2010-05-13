@@ -5,6 +5,8 @@ describe 'jquery.editinplace'
       return this.enableEditor(options).click();
     }
     this.enableEditor = function(options) {
+      if ( ! options || ! ('callback' in options))
+        options = $.extend({url:'nonexistant_url'}, options);
       return this.sandbox.editInPlace(options);
     }
   end
@@ -14,11 +16,15 @@ describe 'jquery.editinplace'
     // and on inserting it, that will whipe the test results. (I don't quite understand why)
     mock_request().and_return('fnord')
     this.sandbox = $('<p>Some text</p>')
-    // Workaround to jquery-ui bug that it can't reliably deal with document fragments not having a color at their root element
+    // Workaround to jquery-ui 1.7.3 bug that it can't reliably deal with document fragments not having a color at their root element
     this.sandbox.parent().css({ backgroundColor:'transparent' })
   end
   
   describe 'default settings'
+    it 'should throw if neither url nor callback option is set'
+      var that = this;
+      -{ that.sandbox.editInPlace() }.should.throw_error Error, "Need to set either url: or callback: option for the inline editor to work."
+    end
     
     it 'can convert tag to editor'
       this.editor().should.have_tag 'input'
@@ -33,18 +39,19 @@ describe 'jquery.editinplace'
     end
     
     it 'will hover to yellow'
-      this.sandbox.editInPlace().mouseover().css('background-color').should.equal 'rgb(255, 255, 204)'
+      this.enableEditor().mouseover().css('background-color').should.equal 'rgb(255, 255, 204)'
       this.sandbox.mouseout().css('background-color').should.equal 'transparent'
     end
     
-    it 'will show text during saving'
+    it 'will show text during saving to server'
       stub($, 'ajax')
       this.editor().find(':input').val('fnord').submit()
       this.sandbox.should.have_text "Saving..."
     end
     
     it 'should show "click here to add text" if element is empty'
-      $('<p>').editInPlace().should.have_text "(Click here to add text)"
+      this.sandbox = $('<p>');
+      this.enableEditor().should.have_text "(Click here to add text)"
     end
     
     it 'should always have "inplace_name" as name and "inplace_field" as class'
@@ -122,7 +129,8 @@ describe 'jquery.editinplace'
     end
     
     it 'should not think that it has placed the default text in the editor if its content is changed from somewhere else'
-      this.sandbox = $('<p></p>').editInPlace().text('fnord')
+      this.sandbox = $('<p></p>')
+      this.enableEditor().text('fnord')
       this.sandbox.click().find(':input').val().should.equal 'fnord'
     end
     
@@ -132,7 +140,7 @@ describe 'jquery.editinplace'
     
     it 'should set .editInPlace-active when activating editor'
       this.sandbox.should.not.have_class '.editInPlace-active'
-      this.sandbox.editInPlace().click().should.have_class '.editInPlace-active'
+      this.enableEditor().click().should.have_class '.editInPlace-active'
     end
     
     it 'should remove .editInPlace-active when editor finished submitting'
@@ -275,16 +283,18 @@ describe 'jquery.editinplace'
     it 'should add params as additional parameters to post-url'
       var url
       stub($, 'ajax').and_return(function(options) { url = options.data; })
-      this.editor({params: 'foo=bar'}).find(':input').val('fnord').submit()
+      this.editor({ params: 'foo=bar'}).find(':input').val('fnord').submit()
       url.should.include 'foo=bar'
     end
     
     it 'can edit default text shown in empty editors'
-      $('<p>').editInPlace({ default_text: 'fnord' }).should.have_text 'fnord'
+      this.sandbox = $('<p>')
+      this.enableEditor({ default_text: 'fnord' }).should.have_text 'fnord'
     end
     
     it 'should show an empty editor even if default_text was shown in the element'
-      $('<p>').editInPlace({ default_text: 'fnord' }).click().find(':input').should.have_text ''
+      this.sandbox = $('<p>')
+      this.enableEditor({ default_text: 'fnord' }).click().find(':input').should.have_text ''
     end
     
     it 'can show as textarea with specified rows and cols'
@@ -383,7 +393,7 @@ describe 'jquery.editinplace'
     end
     
     it 'can set hover_class parameter to override directly setting colors'
-      this.sandbox.editInPlace({ hover_class: 'fnord'})
+      this.enableEditor({ hover_class: 'fnord'})
       this.sandbox.should.not.have_class 'fnord'
       this.sandbox.mouseenter().should.have_class 'fnord'
       this.sandbox.mouseleave().should.not.have_class 'fnord'
@@ -556,7 +566,8 @@ describe 'jquery.editinplace'
       end
       
       it 'should present an empty editor if the default text was entered by the editor itself ' + this.type
-        this.sandbox = $('<p></p>').editInPlace({ default_text: 'fnord', on_blur: 'cancel' , field_type:this.type})
+        this.sandbox = $('<p>')
+        this.enableEditor({ default_text: 'fnord', on_blur: 'cancel' , field_type:this.type})
         this.sandbox.should.have_text 'fnord'
         this.sandbox.click().find(':input').should.have_value ''
         // also the second time
@@ -569,14 +580,14 @@ describe 'jquery.editinplace'
       end
       
       it 'should cancel with enter if no changes where made'
-        this.sandbox.editInPlace({field_type:this.type}).click()
+        this.enableEditor({field_type:this.type}).click()
         
         this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
         this.sandbox.should.not.have_tag 'form'
       end
       
       it 'should submit with enter if changes where made'
-        this.sandbox.editInPlace({field_type:this.type}).click().find(':input').val('fnord')
+        this.enableEditor({field_type:this.type}).click().find(':input').val('fnord')
         this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
         this.sandbox.should.not.have_tag 'form'
       end
@@ -593,9 +604,9 @@ describe 'jquery.editinplace'
         return count;
       }
       this.numberOfHandlers().should.be 0
-      this.sandbox.editInPlace()
+      this.enableEditor()
       this.numberOfHandlers().should.be 1
-      this.sandbox.editInPlace()
+      this.enableEditor()
       this.numberOfHandlers().should.be 1
     end
     
