@@ -66,4 +66,11 @@ $(document).ready(function(){
 			return enteredText;
 		}
 	});
+	
+	// If you need to remove an already bound editor you can call
+
+	// > $(selectorForEditors).unbind('.editInPlace')
+
+	// Which will remove all events that this editor has bound. You need to make sure however that the editor is 'closed' when you call this.
+	
 });
