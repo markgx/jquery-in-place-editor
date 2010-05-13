@@ -62,18 +62,6 @@ describe 'jquery.editinplace'
       this.enableEditor().should.have_text "(Click here to add text)"
     end
     
-    it 'should always have "inplace_name" as name and "inplace_field" as class'
-      // REFACT: should go into the field types section?
-      var that = this;
-      function checkNameAndClass(options) {
-        that.sandbox = $('<p>')
-        that.openEditor(options).find(':input').should.have_attr 'name', 'inplace_value'
-      }
-      checkNameAndClass()
-      checkNameAndClass({field_type:'textarea'})
-      checkNameAndClass({field_type:'select'})
-    end
-    
     it 'will size textareas 25x10 by default'
       var textarea = this.openEditor({field_type:'textarea'}).find(':input')
       textarea.attr('cols').should.be 25
@@ -83,12 +71,9 @@ describe 'jquery.editinplace'
     describe 'ajax submissions'
       
       before_each
-        var _this = this;
-        stub($, 'ajax').and_return(function(options){ _this.url = options.data; })
-      end
-      
-      after_each
-        this.url = undefined
+        var that = this;
+        that.url = undefined;
+        stub($, 'ajax').and_return(function(options){ that.url = options.data; })
       end
       
       it 'will submit id of original element as element_id'
@@ -108,12 +93,6 @@ describe 'jquery.editinplace'
         this.url.should.include 'original_html=fnord'
       end
       
-      it 'will submit on blur'
-        // REFACT: should go in a different section, custom settings, default settings?
-        this.openEditor().find(':input').val('fnord').blur()
-        this.sandbox.should.have_text 'Saving...'
-      end
-      
       it 'will url encode entered text'
         this.edit({}, '%&=/<>')
         this.url.should.include 'update_value=%25%26%3D%2F%3C%3E'
@@ -131,6 +110,11 @@ describe 'jquery.editinplace'
         this.url.should.include 'foo=bar'
         editor.click().find(':input').val(23).submit()
         this.url.should.include 'foo=bar'
+      end
+      
+      it 'will submit on blur'
+        this.openEditor().find(':input').val('fnord').blur()
+        this.sandbox.should.have_text 'Saving...'
       end
       
     end
@@ -590,7 +574,7 @@ describe 'jquery.editinplace'
   end
   
   describe 'edit field behaviour'
-    
+    // REFACT: this is probably a prime candidate to use the 'should_behave_like' directive
     $.each(['text', 'textarea', 'select'], function(index, type) {
       // sadly I can't just pass it through the scope as all functions are evaled in their own scope
       this.type = type;
@@ -628,30 +612,36 @@ describe 'jquery.editinplace'
       
       it 'should present an empty editor if the default text was entered by the editor itself ' + this.type
         this.sandbox = $('<p>')
-        this.enableEditor({ default_text: 'fnord', on_blur: 'cancel' , field_type:this.type})
+        this.enableEditor({ default_text: 'fnord', field_type:this.type})
         this.sandbox.should.have_text 'fnord'
         this.sandbox.click().find(':input').should.have_value ''
         // also the second time
-        this.sandbox.find(':input').blur()
+        this.sandbox.find(':input').submit()
         this.sandbox.click().find(':input').should.have_value ''
         // but not when it was changed in the meantime
-        this.sandbox.find(':input').blur()
+        this.sandbox.find(':input').submit()
         this.sandbox.text('fnord')
         this.sandbox.click().find(':input').should.have_value 'fnord'
       end
       
-      it 'should cancel with enter if no changes where made'
+      it 'should cancel with enter if no changes where made' + this.type 
         this.enableEditor({field_type:this.type}).click()
         
         this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
         this.sandbox.should.not.have_tag 'form'
       end
       
-      it 'should submit with enter if changes where made'
+      it 'should submit with enter if changes where made' + this.type
         this.edit({ field_type:this.type })
         this.sandbox.find(':input').trigger({ type: 'keyup', which: 13 /* enter */ })
         this.sandbox.should.not.have_tag 'form'
       end
+      
+      it 'should always have "inplace_name" as name and "inplace_field" as class' + this.type
+        this.openEditor({ field_type: this.type })
+        this.sandbox.find(':input').should.have_attr 'name', 'inplace_value'
+      end
+      
     })
     
     it 'will ignore multiple attempts to add an inline editor'
