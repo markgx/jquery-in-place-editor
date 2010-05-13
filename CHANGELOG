@@ -1,3 +1,123 @@
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	the editor will now throw if you provide neither a callback or a url parameter to it. This lead to quite some fallout in the testsuite as it still enabled lots of editors with neither option...
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated to jspec 4.3.1
+
+2010-05-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated documentation to be easier to grasp and more in line to what the documentation of the homepage has been
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated version to something more sane for the next release
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	more documentation fixes and some generall small cleanup
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	small enhancements to documentation but mostly removed and reordered TODOs and REFACTs
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	improved documentation with an overview of how the inline editor works
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed missing var statements
+
+2010-05-11  Martin Haecker  <spamfaenger@gmx.de>
+
+	applied patch from robert that adds a cancel option like in jquery-ui to not open the editor when the click event happened on a cancel event
+
+2010-05-10  Martin Haecker  <spamfaenger@gmx.de>
+
+	added missing documentation
+
+2010-05-10  Martin Haecker  <spamfaenger@gmx.de>
+
+	enhanced callback protocol, added postclose and now checking the returnvalue of preinit. If it returns false, the editor is not opened
+
+2010-05-07  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed postclose callback to always be called after the editor has restored the new value either from the server or from the callback
+
+2010-05-07  Martin Haecker  <spamfaenger@gmx.de>
+
+	added postclose callback to do cleanup work after the editor has closed
+
+2010-05-07  Martin Haecker  <spamfaenger@gmx.de>
+
+	added preinit callback to the options
+
+2010-05-06  Martin Haecker  <spamfaenger@gmx.de>
+
+	added test and fix that return commits in all browsers
+
+2010-05-04  Martin Haecker  <spamfaenger@gmx.de>
+
+	removed stray debugger statement
+
+2010-04-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed test in firefox (background-color was not returned as part of background and transparent was used as the default background color for p elements (instead of inherit as we expected)) and added another fix for firefox to send blur events to other open editors.
+
+2010-04-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added documentation on how to use the callback interface for the callback submit
+
+2010-04-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added tests to verify that the animation color can be specified by a parameter
+
+2010-04-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added jquery ui
+
+2010-04-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added saving animation support
+
+2010-04-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed failuresOnly by not overwriting this.options in the tests and some small cleanups
+
+2010-04-21  Martin Haecker  <spamfaenger@gmx.de>
+
+	added a callback interface to submit to callback that allows the editor to know when the callback is done saving it's values
+
+2010-04-21  Martin Haecker  <spamfaenger@gmx.de>
+
+	added field type to tests that where applied to text, textarea and select fields
+
+2010-04-21  Martin Haecker  <spamfaenger@gmx.de>
+
+	added todos
+
+2010-04-21  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated to 4.2.1 of jspec
+
+2010-03-28  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated jspec to 4.1.0
+
+2010-03-28  Martin Haecker  <spamfaenger@gmx.de>
+
+	added testcase to ensure all commits include the params optional parameter
+
+2010-03-25  mhaecker
+
+	setting correct mime types for the demo files
+
+2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated changelog before release
+
 2010-03-23  Martin Haecker  <spamfaenger@gmx.de>
 
 	removed todos from release script
