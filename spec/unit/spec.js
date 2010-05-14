@@ -1,3 +1,5 @@
+// TODO: find out if the setups of thenested describes remove too much clarity from the testsuite
+
 
 describe 'jquery.editinplace'
   before
@@ -9,6 +11,7 @@ describe 'jquery.editinplace'
       return this.sandbox.editInPlace(options);
     }
     
+    // REFACT: consider to return .find(':input') as a convenience
     this.openEditor = function(options) {
       return this.enableEditor(options).click();
     }
@@ -103,7 +106,7 @@ describe 'jquery.editinplace'
       
       it 'will url encode original html correctly'
         this.sandbox.html('<p onclick="\"%&=/<>\"">')
-        this.edit()
+        this.edit({use_html:true})
         this.url.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
       end
       
@@ -131,6 +134,44 @@ describe 'jquery.editinplace'
       this.sandbox = $('<p></p>')
       this.enableEditor().text('fnord')
       this.sandbox.click().find(':input').val().should.equal 'fnord'
+    end
+    
+    describe 'editor value interaction should use .text() to'
+      
+      before_each
+        this.sandbox.html('fno<span>rd</span>')
+      end
+      
+      it 'extract value from editor by default'
+        this.openEditor().find(':input').val().should.be 'fnord'
+      end
+      
+      it 'restore content after cancel'
+        this.openEditor().find(':input').submit()
+        // cancel editor
+        this.sandbox.should.have_event_handlers 'click'
+        this.sandbox.should.not.have_tag 'span'
+      end
+      
+      it 'send to callback as third argument'
+        var thirdArgument
+        var options = {callback: -{ thirdArgument = arguments[2]; return ''; }}
+        this.edit(options)
+        thirdArgument.should.equal 'fnord'
+      end
+      
+      it 'restore editor DOM after failed callback call'
+        this.edit({callback: -{}, error_sink: -{}})
+        this.sandbox.should.not.have_tag 'span'
+      end
+      
+      it 'send to server via ajax-request'
+        var data
+        stub($, 'ajax').and_return(function(options) { data = options.data; })
+        this.edit()
+        data.should.match /original_value=fnord/
+      end
+      
     end
     
   end
@@ -566,6 +607,28 @@ describe 'jquery.editinplace'
       it 'should not open the editor even clicking on one of two cancel elements'
         this.openEditor({ cancel: "a, p"})
         this.sandbox.should.not.have_tag ':input'
+      end
+      
+    end
+    
+    describe 'editor value interaction can use .html() to'
+      
+      before_each
+        this.sandbox.html('fno<span>rd</span>')
+      end
+      
+      it 'set value of editor'
+        this.openEditor({use_html:true}).find(':input').should.have_value 'fno<span>rd</span>'
+      end
+      
+      it 'select default options for select field'
+        this.openEditor({use_html:true, field_type:'select', select_options:['foo:fnord', 'bar:fno<span>rd</span>']})
+        this.sandbox.find(':input').should.have_value 'fno<span>rd</span>'
+      end
+      
+      it 'determines if nothing changed'
+        $.should.receive('ajax')
+        this.edit({use_html:true}, 'fnord')
       end
       
     end
