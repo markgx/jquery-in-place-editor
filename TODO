@@ -1,6 +1,8 @@
 TODO
 ====
 
+- Change deprecation notes to state the version the deprecation was put in, not when it will be removed.
+- rename RELEASE NOTES to BACKWARDS COMPATIBILITY NOTES or BACKWARDS INCOMPATIBLE CHANGES or BACKWARDS COMPATIBILITY CHANGES as I don't see myself as writing release notes anytime soon
 - Allow the user to chose if html source should be edited or text (default to text). Probably needs a way
   for the user to decide how the result should be embedded (think about editing wiki-text and inserting rendered html)
 - Update to jQuery 1.4.x, aparently something breaks
@@ -8,6 +10,8 @@ TODO
   (fold in show progress, offer callbacks for different lifecycle events, ...)
 - consider to pass the original dom element instead of it's id in the callback function. (However $('#' + original_id) also accomplishes this)
 - support live events to trigger inline editing to ease highly dynamic websites better
+  - when using live events, the editor can't guarantee the order of ediors if multiple editors register for the same element.
+  - could add debug mode to raise / show error if this is detected on click (multiple editors where bound, mixture of live / immediate events)
 - select on choosing if no buttons are shown (should be able to disable this if wanted)
 - Allow the editor to show up on hoverig above it (make sure to do it in a way that doesn't crash IE 7)
 - More animations during submit: show spinner
@@ -30,6 +34,11 @@ TODO
 - deprecate callback arguments that are no longer usefull / needed. For example:
   - The first argument of the 'callback' option was removed. Use $(this).attr('id') instead if you need it.
   - success and error callbacks got the editor DOM element as the second argument. Use $(this) instead.
+- Consider editor types as subclasses so different inline editors can be built more easily.
+- Could also break out functional classes, callback handling, lifecycle events / delegate behaviour
+- Consider every optional callback as optional delegete call?
+- dependencies of editors, i.e. typing in one will update another aka bindings?
+  - Could also be live updating of delegate / calling of callbacks
 
 REFACT
 ------
@@ -45,26 +54,70 @@ REFACT
 Proposed Callbacks
 ------------------
 
+Could also use callbacks to interact with child-classes, i.e. do the actual work. That could be a really nice interface for child-classes, not sure if it works for everything though, so deeper subclassing may be neccessary
+
+// these would come just before shouldOpen when using live events
+shouldInit:
+willInit:
+init:
+didInit:
+
+shouldHover:
+willHover:
+hover:
+didHover:
+
+shouldUnhover:
+willUnhover:
+unHover:
+didUnhover:
+
+// prio 1
 // maybe combine should and will callbacks?
 shouldOpen:
-willOpen: // could be usefull to customize settings?
+willOpen: // could be usefull to customize settings? // transform content here
+open:
 didOpen:
 
-willShowContent: // to transform entered text. E.g. fetch markup of rendered text
-
+// for open editor?
+// user enters stuff, keypress / changed selection on select
 // how to deal with validation?
-willEnterCharacter:
-didEnterCharacter:
+shouldChangeContent: // should this be accepted
+willChangeContent: // transform?
+changeContent:
+didChangeContent: // do something with the new information
+
+shouldSubmitContent: // first callback after submit was called - does it make sense to call something like this if validation didn't work?
+shouldEnableSubmit: // didChangeContent
+willSubmitContent: // maybe transform what goes to the server
+submit:
+didSubmitContent:
 // seems not enough, doesn't handle select fields
 
-shouldClose:
-willClose:
-didClose:
+// for closed editor? would be really nice to unify with open editor
+// could be a generic interface to update the displayed values
+// what about when the editor is open? what interface to use then?
+shouldUpdateContent: // get notification to update the content, either the view, wrong direction..., something should call this¿
+willUpdateContent: // could be callback after we get something from the server (also didUpdateContent)
+updateContent: // could use this to decide between html() and text(), could call changeContent
+didUpdateContent: 
 
-// transforming entered stuff to customize it, i.e. render markdown or something similar
+// maybe
+shouldSendToServer:
+willSendToServer:
+sendToServer
+didSendToServer:
+progressFromServer: // probably impossible
+
+
+// prio 1
+shouldClose: // willChangeContent / didChangeContent ?
+willClose: // transform content, could be willSubmitContent
+close:
+didClose: // could return false to prevent reinit - not very clear though
+
 // this should also work when the editor submits the data to the server itself
 // need callback to compute the data that is sent to the server (e.g. to provide arbitrary json)
 // need ability to specify http verb to use (PUT, POST, DELETE, etc.)
 
-shouldReinit:
-// could be able to customize reinit behaviour?
+shouldReinit: // could be able to customize reinit behaviour?, maybe better shouldOpen? didClose could also remove editor

@@ -1,7 +1,3 @@
-Version 2.1
------------
+Backwards compatibility breaks in 2.1.0:
 
-Backwards-Incompatible Changes from 2.0.0:
 - All callbacks now recieve the DOM-Node of the editor set as their this context
-
-All callbacks gained the DOM node of the editor that triggered them as their this context.
