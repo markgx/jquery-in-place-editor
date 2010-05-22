@@ -343,6 +343,16 @@ describe 'jquery.editinplace'
       textarea.should.have_attr 'cols', 42
     end
     
+    it 'can show as input with specified size'
+      var input = this.openEditor({ 
+        field_type: 'text',
+        text_size: '23'
+      })
+      
+      input.should.have_attr 'size', 23
+    end
+    
+    
     describe 'select fields'
       
       before
