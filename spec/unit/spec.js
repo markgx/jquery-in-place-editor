@@ -1,5 +1,3 @@
-// TODO: find out if the setups of thenested describes remove too much clarity from the testsuite
-
 
 describe 'jquery.editinplace'
   before
@@ -19,6 +17,7 @@ describe 'jquery.editinplace'
     this.edit = function(options, value) {
       value = (undefined === value) ? 'text that is different to what was entered before' : value;
       this.openEditor(options).find(':input').val(value).submit();
+      return this.sandbox;
     }
     
   end
@@ -55,12 +54,6 @@ describe 'jquery.editinplace'
     it 'will hover to yellow'
       this.enableEditor().mouseover().css('background-color').should.equal 'rgb(255, 255, 204)'
       this.sandbox.mouseout().css('background-color').should.equal 'transparent'
-    end
-    
-    it 'will show text during saving to server'
-      stub($, 'ajax')
-      this.edit()
-      this.sandbox.should.have_text "Saving..."
     end
     
     it 'should show "click here to add text" if element is empty'
@@ -119,8 +112,8 @@ describe 'jquery.editinplace'
       end
       
       it 'will submit on blur'
+        $.should.receive 'ajax'
         this.openEditor().find(':input').val('fnord').blur()
-        this.sandbox.should.have_text 'Saving...'
       end
       
     end
@@ -313,6 +306,12 @@ describe 'jquery.editinplace'
   
   describe 'custom settings'
     
+    it 'will show text during saving to server'
+      stub($, 'ajax')
+      this.edit({saving_text: 'Saving...'})
+      this.sandbox.should.have_text "Saving..."
+    end
+    
     it 'should add params as additional parameters to post-url'
       var url
       stub($, 'ajax').and_return(function(options) { url = options.data; })
@@ -412,6 +411,8 @@ describe 'jquery.editinplace'
       end
       
       it 'does not submit disabled default choice in select'
+        $.should.not.receive 'ajax'
+        debugger
         this.edit(this.selectOptions({
           callback: function(unused, input) { return input; }
         }), '')
@@ -577,6 +578,121 @@ describe 'jquery.editinplace'
           this.edit({ postclose: this.sensor })
         end
         
+      end
+      
+      describe 'lifecycle callbacks'
+        // TODO: check for all editor types, especially select fields
+        // ideally, all callback tests should run with all editor types
+        // This could be a fertile ground for the should_behave_like directive,
+        // and a good call to split this into multiple files
+        
+        before_each
+          this.sensor = {}
+          var that = this;
+          var originalEnableEditor = this.enableEditor
+          stub(this, 'enableEditor').and_return(function(optionalSettings) {
+            return originalEnableEditor.call(that, $.extend({ delegate: that.sensor }, optionalSettings))
+          })
+        end
+        
+        describe 'open'
+          it 'should not open editor if shouldOpenEditInPlace returns false'
+            this.sensor.should.receive_stub 'shouldOpenEditInPlace', false
+            this.openEditor().should.not.have_tag 'form'
+          end
+        
+          it 'shouldOpenEditInPlace should get the click event as parameter'
+            var event;
+            this.sensor.should.receive_stub 'shouldOpenEditInPlace', -{ event = arguments[2] }
+            this.openEditor()
+            event.should.have_property 'type', 'click'
+          end
+                
+          it 'should use return value of willOpenEditInPlace as initial value for editor'
+            this.sensor.should.receive_stub 'willOpenEditInPlace', -{ return 'fnord' }
+            this.openEditor().find(':input').should.have_value 'fnord'
+          end
+        
+          it 'should use return value of willOpenEditInPlace even if its falsy'
+            this.sensor.should.receive_stub 'willOpenEditInPlace', ''
+            this.openEditor().find(':input').should.have_value ''
+          end
+          
+          // TODO: willOpenEditInPlace is also called for select fields
+          
+          it 'should use original value if willOpenEditInPlace returns undefined'
+            this.sandbox.text('fnord')
+            this.sensor.should.receive_stub 'willOpenEditInPlace', -{}
+            this.openEditor().find(':input').should.have_value 'fnord'
+          end
+        
+          it 'should call didOpenEditor once the editor is open'
+            this.sensor.stub('willOpenEditInPlace').and_return('foo')
+            this.sensor.should.receive_stub 'didOpenEditInPlace', function(dom) { $(dom).find(':input').val('fnord') }
+            this.openEditor().find(':input').should.have_value 'fnord'
+          end
+        end
+        
+        describe 'close'
+        
+          it 'shouldCloseEditInPlace should be able to cancel closing the editor'
+            this.sensor.should.receive_stub 'shouldCloseEditInPlace', false
+            this.edit('fnord').should.have_tag ':input'
+          end
+          
+          it 'shouldCloseEditInPlace can cancel cancelling the editor'
+            this.sensor.should.receive_stub 'shouldCloseEditInPlace', false
+            this.openEditor({ on_blur:'cancel' }).find(':input').blur() // no change == cancel
+            this.sandbox.should.have_tag ':input'
+          end
+          
+          // TODO: consider a test that the shouldCloseEditor is not called more than once?
+          
+          it 'shouldCloseEditInPlace should get the triggering event as parameter'
+            var event
+            this.sensor.should.receive_stub 'shouldCloseEditInPlace', -{ event = arguments[2] }
+            this.edit()
+            event.should.have_property 'type', 'submit'
+          end
+          
+          it 'shouldCloseEditInPlace should get the triggering event as parameter on cancel'
+            var event
+            this.sensor.should.receive_stub 'shouldCloseEditInPlace', -{ event = arguments[2] }
+            this.openEditor({ on_blur: 'cancel' }).find(':input').blur()
+            event.should.have_property 'type', 'blur'
+          end
+          
+          it 'willCloseEditInPlace return value can override commit value'
+            this.sensor.should.receive_stub 'willCloseEditInPlace', 'fnord'
+            var committedText
+            stub($, 'ajax').and_return(function(options) {
+              options.data.should.include 'fnord'
+            })
+            this.edit({}, 'foo')
+          end
+          
+          it "willCloseEditInPlace's return value will be shown during saving"
+            this.sensor.should.receive_stub 'willCloseEditInPlace', 'fnord'
+            stub($, 'ajax')
+            this.edit({}, 'foo')
+            this.sandbox.should.have_text('fnord')
+          end
+          
+          it 'didCloseEditInPlace will be called after the editor is closed'
+            function sensor(dom) {
+              dom.should.not.have_tag 'form'
+            }
+            this.sensor.should.receive_stub 'didCloseEditInPlace', sensor
+            this.edit()
+          end
+          
+          it 'didCloseEditInPlace can change dom to be displayed after the editor closes'
+            this.sensor.should.receive_stub 'didCloseEditInPlace', function(dom){ $(dom).text('fnord') }
+            this.edit()
+            this.sandbox.should.have_text 'fnord'
+          end
+          
+        end
       end
       
     end
@@ -749,7 +865,7 @@ describe 'jquery.editinplace'
       if ($.browser.mozilla) {
         // cold need to encapsulate in div
         this.sandbox = $('<div><p/><p/></div>')
-        this.sandbox.find('p').editInPlace()
+        this.sandbox.find('p').editInPlace({url:'fnord'})
         // open both editors at the same time
         this.sandbox.find('p:first').click()
         this.sandbox.find('p:last').click()
