@@ -1,6 +1,6 @@
 TODO
 ====
-
+- consolidate documentation for options and callbacks
 - Rename settings so they make more sense (e.g. saving_image -> saving_image_url) but keep backwards compatible to old settings
   also make all settings consistent in their underscore usage (i.e. don't use any. :)
   params -> extra_submit_parameters / context_parametes
