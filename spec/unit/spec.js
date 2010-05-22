@@ -4,19 +4,19 @@ describe 'jquery.editinplace'
     // REFACT: use JSpec.context = { foo : 'bar' } for this
     // helpers to simplify writing the tests
     this.enableEditor = function(options) {
+      // need either callback or url or the inline editor will throw
       if ( ! options || ! ('callback' in options))
         options = $.extend({url:'nonexistant_url'}, options);
       return this.sandbox.editInPlace(options);
     }
     
-    // REFACT: consider to return .find(':input') as a convenience
     this.openEditor = function(options) {
-      return this.enableEditor(options).click();
+      return this.enableEditor(options).click().find(':input');
     }
     
     this.edit = function(options, value) {
       value = (undefined === value) ? 'text that is different to what was entered before' : value;
-      this.openEditor(options).find(':input').val(value).submit();
+      this.openEditor(options).val(value).submit();
       return this.sandbox;
     }
     
@@ -40,15 +40,18 @@ describe 'jquery.editinplace'
     end
     
     it 'can convert tag to editor'
-      this.openEditor().should.have_tag 'input'
+      this.openEditor()
+      this.sandbox.should.have_tag 'input'
     end
     
     it 'leaves out buttons by default'
-      this.openEditor().should.not.have_tags 'button'
+      this.openEditor()
+      this.sandbox.should.not.have_tags 'button'
     end
     
     it 'uses text as default field type'
-      this.openEditor().should.have_tag 'input[type="text"]'
+      this.openEditor()
+      this.sandbox.should.have_tag 'input[type="text"]'
     end
     
     it 'will hover to yellow'
@@ -62,7 +65,7 @@ describe 'jquery.editinplace'
     end
     
     it 'will size textareas 25x10 by default'
-      var textarea = this.openEditor({field_type:'textarea'}).find(':input')
+      var textarea = this.openEditor({field_type:'textarea'})
       textarea.attr('cols').should.be 25
       textarea.attr('rows').should.be 10
     end
@@ -113,14 +116,14 @@ describe 'jquery.editinplace'
       
       it 'will submit on blur'
         $.should.receive 'ajax'
-        this.openEditor().find(':input').val('fnord').blur()
+        this.openEditor().val('fnord').blur()
       end
       
     end
     
     it 'should not trigger submit if nothing was changed'
       $.should.not.receive 'ajax'
-      this.openEditor().find('form').submit()
+      this.openEditor().submit()
     end
     
     it 'should not think that it has placed the default text in the editor if its content is changed from somewhere else'
@@ -136,11 +139,11 @@ describe 'jquery.editinplace'
       end
       
       it 'extract value from editor by default'
-        this.openEditor().find(':input').val().should.be 'fnord'
+        this.openEditor().val().should.be 'fnord'
       end
       
       it 'restore content after cancel'
-        this.openEditor().find(':input').submit()
+        this.openEditor().submit()
         // cancel editor
         this.sandbox.should.have_event_handlers 'click'
         this.sandbox.should.not.have_tag 'span'
@@ -184,7 +187,7 @@ describe 'jquery.editinplace'
     end
     
     it 'should remove .editInPlace-active when cancelling the editor'
-      this.openEditor().find(':input').submit();
+      this.openEditor().submit();
       this.sandbox.should.not.have_class '.editInPlace-active'
     end
     
@@ -334,7 +337,7 @@ describe 'jquery.editinplace'
         field_type:'textarea',
         textarea_rows:23,
         textarea_cols:42
-      }).find('textarea')
+      })
       
       textarea.should.have_attr 'rows', 23
       textarea.should.have_attr 'cols', 42
@@ -435,7 +438,7 @@ describe 'jquery.editinplace'
     
     it 'should still commit if commit_if_nothing_was_changed is specified'
       $.should.receive 'ajax', 'once'
-      this.openEditor({save_if_nothing_changed:true}).find('form').submit()
+      this.openEditor({save_if_nothing_changed:true}).submit()
     end
     
     describe 'can override error_sink to get errors as callbacks'
@@ -475,7 +478,7 @@ describe 'jquery.editinplace'
     end
     
     it 'should not reset background color on cancel if hover_class is specified'
-      this.openEditor({hover_class: 'fnord'}).find('form').submit()
+      this.openEditor({hover_class: 'fnord'}).submit()
       this.sandbox.css('background-color').should.be_within ['', 'inherit', 'transparent']
     end
     
@@ -492,12 +495,12 @@ describe 'jquery.editinplace'
       
       it 'shoud call preinit callback on click'
         var sensor = false
-        var previousSandbox = this.sandbox.clone(true)
-        this.sandbox.text().should.be previousSandbox.text()
-        var editor = this.openEditor({
+        var originalText = this.sandbox.text()
+        this.sandbox.text().should.be originalText
+        this.openEditor({
           preinit: function(domNode){ sensor = domNode.clone(true); return ''; },
         })
-        sensor.text().should.be previousSandbox.text()
+        sensor.text().should.be originalText
       end
       
       it 'should not open editor if preinit returns false'
@@ -598,7 +601,8 @@ describe 'jquery.editinplace'
         describe 'open'
           it 'should not open editor if shouldOpenEditInPlace returns false'
             this.sensor.should.receive_stub 'shouldOpenEditInPlace', false
-            this.openEditor().should.not.have_tag 'form'
+            this.openEditor()
+            this.sandbox.should.not.have_tag 'form'
           end
         
           it 'shouldOpenEditInPlace should get the click event as parameter'
@@ -610,12 +614,12 @@ describe 'jquery.editinplace'
                 
           it 'should use return value of willOpenEditInPlace as initial value for editor'
             this.sensor.should.receive_stub 'willOpenEditInPlace', -{ return 'fnord' }
-            this.openEditor().find(':input').should.have_value 'fnord'
+            this.openEditor().should.have_value 'fnord'
           end
         
           it 'should use return value of willOpenEditInPlace even if its falsy'
             this.sensor.should.receive_stub 'willOpenEditInPlace', ''
-            this.openEditor().find(':input').should.have_value ''
+            this.openEditor().should.have_value ''
           end
           
           // TODO: willOpenEditInPlace is also called for select fields
@@ -623,13 +627,13 @@ describe 'jquery.editinplace'
           it 'should use original value if willOpenEditInPlace returns undefined'
             this.sandbox.text('fnord')
             this.sensor.should.receive_stub 'willOpenEditInPlace', -{}
-            this.openEditor().find(':input').should.have_value 'fnord'
+            this.openEditor().should.have_value 'fnord'
           end
         
           it 'should call didOpenEditor once the editor is open'
             this.sensor.stub('willOpenEditInPlace').and_return('foo')
             this.sensor.should.receive_stub 'didOpenEditInPlace', function(dom) { $(dom).find(':input').val('fnord') }
-            this.openEditor().find(':input').should.have_value 'fnord'
+            this.openEditor().should.have_value 'fnord'
           end
         end
         
@@ -642,7 +646,7 @@ describe 'jquery.editinplace'
           
           it 'shouldCloseEditInPlace can cancel cancelling the editor'
             this.sensor.should.receive_stub 'shouldCloseEditInPlace', false
-            this.openEditor({ on_blur:'cancel' }).find(':input').blur() // no change == cancel
+            this.openEditor({ on_blur:'cancel' }).blur() // no change == cancel
             this.sandbox.should.have_tag ':input'
           end
           
@@ -658,7 +662,7 @@ describe 'jquery.editinplace'
           it 'shouldCloseEditInPlace should get the triggering event as parameter on cancel'
             var event
             this.sensor.should.receive_stub 'shouldCloseEditInPlace', -{ event = arguments[2] }
-            this.openEditor({ on_blur: 'cancel' }).find(':input').blur()
+            this.openEditor({ on_blur: 'cancel' }).blur()
             event.should.have_property 'type', 'blur'
           end
           
@@ -734,7 +738,7 @@ describe 'jquery.editinplace'
       end
       
       it 'set value of editor'
-        this.openEditor({use_html:true}).find(':input').should.have_value 'fno<span>rd</span>'
+        this.openEditor({use_html:true}).should.have_value 'fno<span>rd</span>'
       end
       
       it 'select default options for select field'
@@ -763,17 +767,17 @@ describe 'jquery.editinplace'
       
       it 'should escape content when inserting text into the ' + this.type + ' editor'
         this.sandbox.text('&"<>');
-        this.openEditor({field_type:this.type}).find(':input').should.have_value '&"<>'
+        this.openEditor({field_type:this.type}).should.have_value '&"<>'
       end
       
       it 'should trim content when inserting text into the ' + this.type + ' editor'
         this.sandbox.text(' fnord ')
-        this.openEditor({field_type:this.type}).find(':input').should.have_value 'fnord'
+        this.openEditor({field_type:this.type}).should.have_value 'fnord'
       end
       
       it 'should restore original content when canceled out of ' + this.type
         this.sandbox.text('fnord')
-        this.openEditor({ field_type:this.type }).find('form').submit()
+        this.openEditor({ field_type:this.type }).submit()
         this.sandbox.should.have_text 'fnord'
       end
       
@@ -789,7 +793,7 @@ describe 'jquery.editinplace'
       
       it 'should not remove content on opening editor if it is identical to the default_text ' + this.type
         this.sandbox = $('<p>fnord</p>')
-        this.openEditor({ default_text:'fnord', field_type:this.type }).find(':input').should.have_value 'fnord'
+        this.openEditor({ default_text:'fnord', field_type:this.type }).should.have_value 'fnord'
       end
       
       it 'should present an empty editor if the default text was entered by the editor itself ' + this.type
@@ -844,7 +848,7 @@ describe 'jquery.editinplace'
     end
     
     it 'should cancel when escape is pressed while focus is in the editor'
-      this.openEditor().find(':input').trigger({type:'keyup', which:27 /* escape */})
+      this.openEditor().trigger({type:'keyup', which:27 /* escape */})
       this.sandbox.should.not.have_tag 'form'
     end
     

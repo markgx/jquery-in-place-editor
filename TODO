@@ -56,6 +56,7 @@ Expansions to jspec
 
 REFACT
 ------
+- Find a way to share enableEditor, openEditor and edit between different testsuites
 - Extract parts of the testsuite to be run with should_behave_like
 - Split testsuite into different files, at least one per editor type that should just inlcude generic tests with should_behave_like
 
