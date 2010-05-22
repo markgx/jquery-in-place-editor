@@ -1,5 +1,8 @@
 TODO
 ====
+- Consider to deprecate the ajax callbacks in favor of the delegate interface.
+- consider to remove / deprecate the textarea sizing support, css is a much better interface to this
+- Find a workable solution to the textareay enters are not preserved problem. Many people have stumbled about it, either document solutions to it or create a default behaviour that works nicely.
 - consolidate documentation for options and callbacks
 - Rename settings so they make more sense (e.g. saving_image -> saving_image_url) but keep backwards compatible to old settings
   also make all settings consistent in their underscore usage (i.e. don't use any. :)
