@@ -305,6 +305,23 @@ describe 'jquery.editinplace'
       this.sandbox.should.have_text ''
     end
     
+    it 'can skip dom reset after callback'
+      var sensor = false
+      this.edit({ callback: -{ sensor = true }, callback_skip_dom_reset:true })
+      sensor.should.be true
+      this.sandbox.should.have_tag 'form'
+    end
+    
+    it 'will not replace editor with its return value'
+      this.edit({ callback: -{ return 'fnord' }, callback_skip_dom_reset:true  })
+      this.sandbox.should.not.have_text 'fnord'
+    end
+    
+    it 'can replace text from within callback'
+      this.edit({ callback: -{ $(this).html('fnord') }, callback_skip_dom_reset:true  })
+      this.sandbox.should.have_text 'fnord'
+    end
+    
   end
   
   describe 'custom settings'
