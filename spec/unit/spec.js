@@ -175,38 +175,38 @@ describe 'jquery.editinplace'
   describe 'marker classes'
     
     it 'should set .editInPlace-active when activating editor'
-      this.sandbox.should.not.have_class '.editInPlace-active'
-      this.enableEditor().click().should.have_class '.editInPlace-active'
+      this.sandbox.should.not.have_class 'editInPlace-active'
+      this.enableEditor().click().should.have_class 'editInPlace-active'
     end
     
     it 'should remove .editInPlace-active when editor finished submitting'
       this.openEditor()
-      this.sandbox.should.have_class '.editInPlace-active'
+      this.sandbox.should.have_class 'editInPlace-active'
       this.sandbox.find(':input').val('fnord').submit()
-      this.sandbox.should.not.have_class '.editInPlace-active'
+      this.sandbox.should.not.have_class 'editInPlace-active'
     end
     
     it 'should remove .editInPlace-active when cancelling the editor'
       this.openEditor().submit();
-      this.sandbox.should.not.have_class '.editInPlace-active'
+      this.sandbox.should.not.have_class 'editInPlace-active'
     end
     
     it 'should remove .editInPlace-active when the callback returns if no animation callbacks are used'
       this.edit({ callback: -{ return ''; } }, 'bar')
-      this.sandbox.should.not.have_class '.editInPlace-active'
+      this.sandbox.should.not.have_class 'editInPlace-active'
     end
     
     it 'should not remove .editInPlace-active if didStartSaving() is called before callback returns'
       var callbacks;
-      function callback(idOfEditor, enteredText, orinalHTMLContent, settingsParams, animationCallbacks) {
-        callbacks = animationCallbacks;
+      function callback() {
+        callbacks = arguments[4];
         callbacks.didStartSaving();
         return '';
       }
       this.edit({ callback:callback })
-      this.sandbox.should.have_class '.editInPlace-active'
+      this.sandbox.should.have_class 'editInPlace-active'
       callbacks.didEndSaving();
-      this.sandbox.should.not.have_class '.editInPlace-active'
+      this.sandbox.should.not.have_class 'editInPlace-active'
     end
     
     it 'should ignore animation callbacks after submit callback has returned'
