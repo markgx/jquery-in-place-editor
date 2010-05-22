@@ -1,3 +1,6 @@
+Backwards compatibility breaks in 2.3.0:
+- Default saving text is changed to the just edited value
+
 Backwards compatibility breaks in 2.2.0:
 
 - Now using .text() to get the value of the inline editor by default, you can set extract_with_html:true to override this.

@@ -1,6 +1,11 @@
 TODO
 ====
 
+- Rename settings so they make more sense (e.g. saving_image -> saving_image_url) but keep backwards compatible to old settings
+  also make all settings consistent in their underscore usage (i.e. don't use any. :)
+  params -> extra_submit_parameters / context_parametes
+- consider to accept string parameters like jquery UI for 'disable', 'enable', 'remove' etc.
+- Rework parameters of success and error server callback
 - Change deprecation notes to state the version the deprecation was put in, not when it will be removed.
 - rename RELEASE NOTES to BACKWARDS COMPATIBILITY NOTES or BACKWARDS INCOMPATIBLE CHANGES or BACKWARDS COMPATIBILITY CHANGES as I don't see myself as writing release notes anytime soon
 - Allow the user to chose if html source should be edited or text (default to text). Probably needs a way
@@ -39,20 +44,24 @@ TODO
 - Consider every optional callback as optional delegete call?
 - dependencies of editors, i.e. typing in one will update another aka bindings?
   - Could also be live updating of delegate / calling of callbacks
+-  consider to trigger all the callbacks as events?
+  - could be an alternative, might be more idiomatic event driven dom programming
+- include spinner image as data url into javascript (add code that writes this as mime thingy for IE)
+- consider to enable the client to specify a prefix / namespace for all css-classes in the inplace editor to make it easier to avoid clashes with outside css
+
+Expansions to jspec
+-------------------
+- add jspec with focus support
+- change the way the grammar works to have less magic and more plain javascript (i.e. use 'with' statement less, support real throwaway this objects for the tests)
 
 REFACT
 ------
+- Extract parts of the testsuite to be run with should_behave_like
+- Split testsuite into different files, at least one per editor type that should just inlcude generic tests with should_behave_like
 
-- include spinner image as data url into javascript (add code that writes this as mime thingy for IE)
-- consider to enable the client to specify a prefix / namespace for all classes in the inplace editor to make it easier to avoid clashes with outside css
-- Rename settings so they make more sense (e.g. saving_image -> saving_image_url) but keep backwards compatible to old settings
-  also make all settings consistent in their underscore usage (i.e. don't use any. :)
-  params -> extra_submit_parameters / context_parametes
-- consider to accept string parameters like jquery UI for 'disable', 'enable', 'remove' etc.
-- Rework parameters of success and error server callback
 
-Proposed Callbacks
-------------------
+Thoughts about a detailed callback
+----------------------------------
 
 Could also use callbacks to interact with child-classes, i.e. do the actual work. That could be a really nice interface for child-classes, not sure if it works for everything though, so deeper subclassing may be neccessary
 
@@ -121,3 +130,5 @@ didClose: // could return false to prevent reinit - not very clear though
 // need ability to specify http verb to use (PUT, POST, DELETE, etc.)
 
 shouldReinit: // could be able to customize reinit behaviour?, maybe better shouldOpen? didClose could also remove editor
+
+Consider to all suffix them with .editInPlace?
