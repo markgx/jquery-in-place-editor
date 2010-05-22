@@ -1,4 +1,3 @@
-// propose for inclusion in jspec propper
 JSpec.addMatchers({
   receive_stub: {defer: true, match: function(actual, method, returnValue, times) {
     JSpec.stub(actual, method).and_return(returnValue)

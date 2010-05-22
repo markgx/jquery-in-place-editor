@@ -415,7 +415,6 @@ describe 'jquery.editinplace'
       
       it 'does not submit disabled default choice in select'
         $.should.not.receive 'ajax'
-        debugger
         this.edit(this.selectOptions({
           callback: function(unused, input) { return input; }
         }), '')
@@ -810,10 +809,10 @@ describe 'jquery.editinplace'
         this.sandbox.click().find(':input').should.have_value 'fnord'
       end
       
-      it 'should cancel with enter if no changes where made' + this.type 
-        this.enableEditor({field_type:this.type}).click()
-        
-        this.sandbox.find('form').trigger({ type: 'keyup', which: 13 /* enter */ })
+      it 'should cancel with enter if no changes where made ' + this.type
+        this.openEditor({ field_type:this.type })
+        var enter = 13
+        this.sandbox.find(':input').trigger({ type: 'keyup', which:enter })
         this.sandbox.should.not.have_tag 'form'
       end
       
@@ -856,16 +855,25 @@ describe 'jquery.editinplace'
       this.edit({}, 'fnord')
       this.sandbox.should.have_text 'fnord'
       // try to get the handler to fire even if it shouldn't
-      $(document).trigger({type:'keyup', which:27 /* escape */})
-      this.sandbox.trigger({type:'keyup', which:27 /* escape */})
+      var escape = 27
+      $(document).trigger({type:'keyup', which:escape})
+      this.sandbox.trigger({type:'keyup', which:escape})
       this.sandbox.should.have_text 'fnord'
+    end
+    
+    it 'should not submit on enter when showing textarea'
+      var enter = 13
+      this.openEditor({ field_type:'textarea'}).trigger({type:'keyup', which:enter})
+      this.sandbox.should.have_tag 'form'
     end
     
   end
   
   describe 'browser specific behaviour'
+  
     it "firefox does send other in place editors blur event (as the browser doesn't do it)"
       // can't return early out of an eval context....
+      // consider to change jspec so these are real functions that are called like regular functions
       if ($.browser.mozilla) {
         // cold need to encapsulate in div
         this.sandbox = $('<div><p/><p/></div>')
@@ -877,6 +885,16 @@ describe 'jquery.editinplace'
         this.sandbox.should.have_tag 'p:last :input'
       }
     end
+    
+    it 'webkit nightlies should commit on enter'
+      if ($.browser.safari) {
+        var enter = 13
+        this.openEditor().val('fnord').trigger({ type:'keyup', which:enter})
+        this.sandbox.should.not.have_tag 'form'
+        this.sandbox.should.have_text 'fnord'
+      }
+    end
+    
   end
   
 end
