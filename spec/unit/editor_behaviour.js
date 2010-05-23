@@ -237,6 +237,20 @@ shared_behaviors_for 'open editor'
     this.sandbox.should.not.have_tag 'form'
   end
   
+  it 'can submit enterd value to function when submitting '
+    var sensor = null
+    var options = {
+      callback: function(id, enteredText) { return sensor = enteredText; }
+    }
+    this.edit(options, 'fnord')
+    sensor.should.equal 'fnord'
+  end
+  
+  it 'should not remove content on opening editor if it is identical to the default_text '
+    this.sandbox = $('<p>fnord</p>')
+    this.openEditor({ default_text:'fnord' }).should.have_value 'fnord'
+  end
+  
 end
 
 shared_behaviors_for 'open editor with arbitrary text input'
@@ -250,20 +264,6 @@ shared_behaviors_for 'open editor with arbitrary text input'
   it 'should trim content when inserting text into the editor'
     this.sandbox.text(' fnord ')
     this.openEditor().should.have_value 'fnord'
-  end
-  
-  it 'should submit enterd value to function when submitting '
-    var sensor = null
-    var options = {
-      callback: function(id, enteredText) { return sensor = enteredText; }
-    }
-    this.edit(options, 'fnord')
-    sensor.should.equal 'fnord'
-  end
-  
-  it 'should not remove content on opening editor if it is identical to the default_text '
-    this.sandbox = $('<p>fnord</p>')
-    this.openEditor({ default_text:'fnord' }).should.have_value 'fnord'
   end
   
 end
@@ -321,7 +321,7 @@ describe 'select'
   should_behave_like('open editor submitting on enter')
   
   before
-    this.additionalOptions = { field_type: 'select' }
+    this.additionalOptions = { field_type: 'select', select_options: 'fnord'}
   end
   
   it 'should be the configured type'
