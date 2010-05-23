@@ -1,3 +1,107 @@
+2010-05-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	split out the callback tests from main test file
+
+2010-05-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	figured out how to have two more tests be in the generic suite
+
+2010-05-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	started splitting the testsuite into multiple files and also started breaking down the tests for the different editor types into their own describe blocks that share behaviour with more generic blocks
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	starte splitting test suite into multiple files for more clarity. First stage involves pushing out setup into 'shared setup' and referencing that with should_behave_like in each testsuite. Works fine so far. :) 
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	more todos
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	started experimenting with jquery 1.4 - it all seems to work quite fine, apart from a few testsuite fixes because hasClass has become stricter in jquery 1.4
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	applied patch from superami to allow the callback to handle the dom reset itself. Thanks again! 
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	documented that input sizing via css is preferred
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	applied patch from superami to add input size support
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	more thoughts on the future...
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	better documentation
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	no longer accidentally committing in textareas when entering a newline
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	deprecated preinit and postclose callbacks as better alternatives are now implemented
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added missing semicolons
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added some documentation on the callbacks
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	changed openEditor to return the :input field directly to shorten testcode
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	added should- will- and did- open / close callbacks to the inplace editor
+
+2010-05-22  Martin Haecker  <spamfaenger@gmx.de>
+
+	what I'm up to changes...
+
+2010-05-20  Martin Haecker  <spamfaenger@gmx.de>
+
+	renamed back to release notes, thats what they really are
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	renamed release notes to backwards compatibility notes as I won't be writing real release notes for now
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	switched default behaviour of editor to use .text() to extract values from dom. Use use_html:true to switch this behaviour
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	should really use JSpect context to bring in my helpers
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated version for next release
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	changed deprecation marker to denote the version something was deprecated for easier removal and extended it to the documentation too
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	worked on todos and on designing the callback interface
+
+2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated changelog before release
+
 2010-05-14  Martin Haecker  <spamfaenger@gmx.de>
 
 	markdowned the documentation and moved more of it out of the source file so the source code is shorter and it is clearer where to find what information
