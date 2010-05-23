@@ -1,4 +1,4 @@
-describe 'shared setup'
+shared_behaviors_for 'shared setup'
 
   before
     // REFACT: use JSpec.context = { foo : 'bar' } for this

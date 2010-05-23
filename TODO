@@ -1,5 +1,6 @@
 TODO
 ====
+- do not change editor content on cancel if callback doesn't return anything
 - saving animation doesn't work when jquery-ui isn't present. Find workaround or have other default saving animation
 - Consider to deprecate the ajax callbacks in favor of the delegate interface.
 - consider to remove / deprecate the textarea sizing support, css is a much better interface to this
