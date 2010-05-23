@@ -15,7 +15,13 @@
 		<script>
 			function runSuites() {
 				JSpec
+					.exec('unit/shared_setup.js')
+					.exec('unit/default_settings.js')
+					.exec('unit/editor_behaviour.js')
+					.exec('unit/browser_bugs.js')
+					
 					.exec('unit/spec.js')
+					
 					.run({ failuresOnly: true, fixturePath: 'fixtures' })
 					.report()
 			}
