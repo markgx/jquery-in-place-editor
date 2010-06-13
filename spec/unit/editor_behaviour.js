@@ -325,7 +325,7 @@ describe 'select'
   end
   
   it 'should be the configured type'
-  this.openEditor().should.be_tag this.additionalOptions.field_type
+    this.openEditor().should.be_tag this.additionalOptions.field_type
   end
   
 end
