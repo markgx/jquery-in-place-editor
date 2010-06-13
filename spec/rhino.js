@@ -15,6 +15,6 @@ load('lib/jquery.editinplace.js')
 load('spec/unit/spec.helper.js')
 
 JSpec
-	.exec('spec/unit/spec.js')
+	.exec('spec/unit/custom_settings.js')
 	.run({ reporter: JSpec.reporters.Terminal, fixturePath: 'spec/fixtures' })
 	.report()

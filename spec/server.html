@@ -11,7 +11,7 @@
 		<script>
 			function runSuites() {
 				JSpec
-				.exec('unit/spec.js')
+				.exec('unit/custom_settings.js')
 				.run({ reporter: JSpec.reporters.Server, verbose: true, failuresOnly: true, fixturePath: '/spec/fixtures' })
 				.report()
 			}
