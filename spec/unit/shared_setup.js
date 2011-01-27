@@ -32,7 +32,7 @@ shared_behaviors_for 'shared setup'
     // REFACT: consider to use JSpec.context = { foo : 'bar' } for this
     this.sandbox = $('<p>Some text</p>')
     // Workaround to jquery-ui 1.7.3 bug that it can't reliably deal with document fragments not having a color at their root element
-    this.sandbox.parent().css({ backgroundColor:'transparent' })
+    this.sandbox.parent().css({ backgroundColor:'#fff' })
   end
   
 end
