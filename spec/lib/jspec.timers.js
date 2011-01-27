@@ -24,7 +24,7 @@
    * @api public
    */
   
-  setTimeout = function(callback, ms) {
+  window.setTimeout = function(callback, ms) {
     var id
   	return id = setInterval(function(){
   	  callback()
@@ -41,7 +41,7 @@
    * @api public
    */
 
-  setInterval = function(callback, ms) {
+  window.setInterval = function(callback, ms) {
     callback.step = ms, callback.current = callback.last = 0
     return timers[timers.length] = callback, timers.length
   }
@@ -54,7 +54,7 @@
    * @api public
    */
 
-  clearInterval = clearTimeout = function(id) {
+  window.clearInterval = window.clearTimeout = function(id) {
     return delete timers[--id]
   }
   
