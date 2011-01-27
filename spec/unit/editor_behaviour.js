@@ -308,7 +308,6 @@ describe 'textarea'
   end
   
   it 'should not submit on enter'
-  debugger
     var enter = 13
     this.openEditor().trigger({type:'keyup', which:enter})
     this.sandbox.should.have_tag 'form'
