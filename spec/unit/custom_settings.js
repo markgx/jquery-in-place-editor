@@ -185,9 +185,10 @@ describe 'custom settings'
   it "should respect saving_animation_color (doesn't yet really test that the target color is reached though)"
     stub($, 'ajax').and_return($)
     this.edit({ saving_animation_color: '#002342' })
-    this.sandbox.css('backgroundColor').should.be 'rgb(255, 255, 255)'
+    // of course IE insists on returning those color values without spaces....
+    this.sandbox.css('backgroundColor').should.be_in 'rgb(255, 255, 255)', 'rgb(255,255,255)'
     tick(200) // first animation not yet finished
-    this.sandbox.css('backgroundColor').should.not.be 'rgb(255, 255, 255)'
+    this.sandbox.css('backgroundColor').should.not.be_in 'rgb(255, 255, 255)', 'rgb(255,255,255)'
     this.sandbox.is(':animated').should.be true
   end
   
