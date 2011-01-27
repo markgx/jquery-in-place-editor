@@ -1,7 +1,7 @@
 shared_behaviors_for 'shared setup'
 
   before
-    // REFACT: use JSpec.context = { foo : 'bar' } for this
+    // REFACT: consider to use JSpec.context = { foo : 'bar' } for this
     // helpers to simplify writing the tests
     this.enableEditor = function(options) {
       // need either callback or url or the inline editor will throw
@@ -29,7 +29,7 @@ shared_behaviors_for 'shared setup'
     // and on inserting it, that will whipe the test results. (I don't quite understand why)
     mock_request().and_return('fnord')
     
-    // REFACT: use JSpec.context = { foo : 'bar' } for this
+    // REFACT: consider to use JSpec.context = { foo : 'bar' } for this
     this.sandbox = $('<p>Some text</p>')
     // Workaround to jquery-ui 1.7.3 bug that it can't reliably deal with document fragments not having a color at their root element
     this.sandbox.parent().css({ backgroundColor:'transparent' })
