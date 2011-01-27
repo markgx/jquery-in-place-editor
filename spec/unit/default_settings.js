@@ -71,8 +71,9 @@ describe 'default settings'
     
     it 'will url encode original html correctly'
       this.sandbox.html('<p onclick="\"%&=/<>\"">')
+      var expectedURLPart = encodeURIComponent(this.sandbox.html())
       this.edit({use_html:true})
-      this.url.should.include 'original_html=%3Cp%20onclick%3D%22%22%20%25%26%3D%22%2F%26lt%3B%22%3E%22%22%26gt%3B%3C%2Fp%3E'
+      this.url.should.include 'original_html=' + expectedURLPart
     end
     
     it 'should not loose the param option on the second submit'
