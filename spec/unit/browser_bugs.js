@@ -1,7 +1,7 @@
 describe 'browser specific behaviour'
-
+    
   should_behave_like('shared setup')
-
+  
   it "firefox does send other in place editors blur event (as the browser doesn't do it)"
     // can't return early out of an eval context....
     // consider to change jspec so these are real functions that are called like regular functions
