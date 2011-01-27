@@ -230,12 +230,14 @@ describe 'custom settings'
     end
     
     it 'set the value of the editor'
-      this.openEditor({use_html:true}).should.have_value 'fno<span>rd</span>'
+      // of course IE has to insist un uppercasing the html-tags...
+      this.openEditor({use_html:true}).val().toLowerCase().should.be 'fno<span>rd</span>'
     end
     
     it 'select default options for select field'
-      this.openEditor({use_html:true, field_type:'select', select_options:['foo:fnord', 'bar:fno<span>rd</span>']})
-      this.sandbox.find(':input').should.have_value 'fno<span>rd</span>'
+      // of course IE has to insist un uppercasing the html-tags...
+      this.openEditor({use_html:true, field_type:'select', select_options:['foo:fnord', 'bar:fno<span>rd</span>', 'baz:fno<SPAN>rd</SPAN>']})
+      this.sandbox.find(':input').val().toLowerCase().should.be 'fno<span>rd</span>'
     end
     
     it 'determines if nothing changed'
