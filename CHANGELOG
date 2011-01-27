@@ -1,3 +1,99 @@
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed last ie test. another case of tag uppercaseritis
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	made test a little bit more succinct
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed test for IE - it would just encode values differently in the dom. Oh well... hopefully the server can deal with those differences correctly...
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed unit test for ie. ugh.
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed unit tests in firefox - turns out the problem in firefox also existed in other browsers though it didn't manifest itself somehow. ???
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	renamed workaround method
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	made browser bug tests execute in all browsers to see if any of the triggered bugs would apply there too - and fixed one bug which promptly appeard in all browsers....
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	rename refactoring
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	workaround for ie8 jquery bug that wouldn't allow animation from transparent background
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	whitespace
+
+2011-01-27  Martin Haecker  <spamfaenger@gmx.de>
+
+	comments
+
+2010-06-16  Martin Haecker  <spamfaenger@gmx.de>
+
+	started to make the testsuite work in IE (still have some problems with jquery UI in IE though)
+
+2010-06-16  Martin Haecker  <spamfaenger@gmx.de>
+
+	added be_in matcher to check one of multiple possible values
+
+2010-06-16  Martin Haecker  <spamfaenger@gmx.de>
+
+	modified mock-timers to make them work with IE till upstream patches them
+
+2010-06-16  Martin Haecker  <spamfaenger@gmx.de>
+
+	removed some empty lines
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	removed stray debugger statement
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated to latest jspec version
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated server based runner to load all files
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	renamed spec.js to custom_settings.js as that are all the test left in there
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	removed outermost layer of the testsuite as all the other describes where moved to different files
+
+2010-06-13  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixed indentation
+
+2010-05-30  Martin Haecker  <spamfaenger@gmx.de>
+
+	fixes #59, I was accidentally using a Spidermonkey extension to splice (which made it behave like slice) - which of course tripped up ie. Ah well. Thanks to inssomnia for noticing! 
+
+2010-05-30  Martin Haecker  <spamfaenger@gmx.de>
+
+	more todos...
+
+2010-05-23  Martin Haecker  <spamfaenger@gmx.de>
+
+	updated changelog before release
+
 2010-05-23  Martin Haecker  <spamfaenger@gmx.de>
 
 	split out the callback tests from main test file
