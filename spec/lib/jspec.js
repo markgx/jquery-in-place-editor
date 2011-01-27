@@ -4,7 +4,7 @@
 ;(function(){
 
   JSpec = {
-    version   : '4.3.1',
+    version   : '4.3.2',
     assert    : true,
     cache     : {},
     suites    : [],
@@ -1749,10 +1749,14 @@
   
   // --- Node.js support
   
-  if (typeof GLOBAL === 'object' && typeof exports === 'object')
-    quit = process.exit,
-    print = require('sys').puts,
-    readFile = require('fs').readFileSync
+  if (typeof GLOBAL === 'object' && typeof exports === 'object') {
+    var fs = require('fs')
+    quit = process.exit
+    print = require('sys').puts
+    readFile = function(file){
+      return fs.readFileSync(file).toString('utf8')
+    }
+  }
   
   // --- Utility functions
 

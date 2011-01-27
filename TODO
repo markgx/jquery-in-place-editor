@@ -1,5 +1,6 @@
 TODO
 ====
+- Rework demo to show code-samples inline (perhaps even make them editable with the inline editor?)
 - Make all deprecated calls emmit a warning to the console when used
 - do not change editor content on cancel if callback doesn't return anything
 - saving animation doesn't work when jquery-ui isn't present. Find workaround or have other default saving animation
