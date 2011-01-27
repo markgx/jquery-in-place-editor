@@ -15,7 +15,9 @@ shared_behaviors_for 'shared setup'
     }
     
     this.edit = function(options, value) {
-      value = (undefined === value) ? 'text that is different to what was entered before' : value;
+      value = (undefined !== value) 
+        ? value 
+        : 'text that is different to what was entered before';
       this.openEditor(options).val(value).submit();
       return this.sandbox;
     }

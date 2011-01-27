@@ -3,8 +3,9 @@ describe 'default settings'
   should_behave_like('shared setup')
   
   it 'should throw if neither url nor callback option is set'
+    var expectedMessage = "Need to set either url: or callback: option for the inline editor to work."
     var that = this;
-    -{ that.sandbox.editInPlace() }.should.throw_error Error, "Need to set either url: or callback: option for the inline editor to work."
+    -{ that.sandbox.editInPlace() }.should.throw_error Error, expectedMessage
   end
   
   it 'can convert tag to editor'
@@ -23,7 +24,7 @@ describe 'default settings'
   end
   
   it 'will hover to yellow'
-    this.enableEditor().mouseover().css('background-color').should.equal 'rgb(255, 255, 204)'
+    this.enableEditor().mouseover().css('background-color').should.be_in 'rgb(255, 255, 204)', '#ffc'
     this.sandbox.mouseout().css('background-color').should.equal 'transparent'
   end
   

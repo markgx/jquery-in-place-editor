@@ -168,6 +168,7 @@ describe 'editor behaviour'
   end
   
   it 'will not restore ancient view content when escape is triggered after the editor has closed'
+    this.sandbox.css('background-color', '0xfff')
     this.edit({}, 'fnord')
     this.sandbox.should.have_text 'fnord'
     // try to get the handler to fire even if it shouldn't
