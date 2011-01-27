@@ -219,7 +219,7 @@ shared_behaviors_for 'open editor'
     this.sandbox.click().find(':input').should.have_value 'fnord'
   end
   
-  it 'should cancel when submitted no changes where made'
+  it 'should cancel on submit when no changes where made'
     $.should.not.receive 'ajax'
     this.openEditor().submit()
     this.sandbox.should.not.have_tag 'form'
