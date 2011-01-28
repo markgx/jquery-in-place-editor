@@ -186,7 +186,7 @@ describe 'custom settings'
     stub($, 'ajax').and_return($)
     this.edit({ saving_animation_color: '#002342' })
     // of course IE insists on returning those color values without spaces....
-    var expectedColors = ['rgb(255, 255, 255)', 'rgb(255,255,255)']
+    var expectedColors = ['rgb(255, 255, 255)', 'rgb(255,255,255)', 'transparent']
     this.sandbox.css('backgroundColor').should.be_within expectedColors
     tick(200) // first animation not yet finished
     this.sandbox.css('backgroundColor').should.not.be_within expectedColors
