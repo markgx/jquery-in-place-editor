@@ -178,6 +178,7 @@ describe 'editor behaviour'
   end
   
   
+  
 end
 
 
@@ -264,6 +265,13 @@ shared_behaviors_for 'open editor with arbitrary text input'
   it 'should trim content when inserting text into the editor'
     this.sandbox.text(' fnord ')
     this.openEditor().should.have_value 'fnord'
+  end
+  
+  it 'should restore content on cancel'
+    this.sandbox.text('bar')
+    this.openEditor({show_buttons: true}).val('foo')
+    this.sandbox.find('.inplace_cancel').click()
+    this.sandbox.text().should.not.include 'foo'
   end
   
 end
